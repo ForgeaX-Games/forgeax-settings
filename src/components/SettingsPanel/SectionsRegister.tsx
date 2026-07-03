@@ -5,8 +5,7 @@
  *
  * Sections registered (in nav order):
  *   - Plugins      (group=plugin)    — BusAdminPanel (full bus inventory)
- *   - API Keys     (group=config)    — anthropic / openai / gemini + multimodal
- *                                       (ark / azure-gpt-image / kling / litellm)
+ *   - API Keys     (group=config)    — LiteLLM proxy only (key + base URL)
  *   - Models       (group=config)    — FORGEAX_MODEL select
  *   - CLI Providers (group=config)   — health + 1-token Test
  *   - Workspace    (group=system)    — reset session + path display
@@ -56,19 +55,6 @@ const MODEL_OPTIONS = [
   { value: 'claude-opus-4-7', label: 'Claude Opus 4.7 (current)' },
   { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
   { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-];
-
-// Multimodal key envs that don't fit the original ANTHROPIC/OPENAI/GEMINI
-// trio — surfaced now that wb-character and other multimodal plugins need
-// them visible in the UI. SAFE_ENV_KEYS in api/settings.ts whitelists each of these.
-const MULTIMODAL_KEYS: Array<{ key: string; label: string; placeholder: string; visible?: boolean }> = [
-  { key: 'ARK_IMAGE_KEY',          label: 'ARK_IMAGE_KEY (Seedream illustration)', placeholder: 'volcengine ARK image key' },
-  { key: 'ARK_VIDEO_KEY',          label: 'ARK_VIDEO_KEY (Seedance video)',         placeholder: 'volcengine ARK video key' },
-  { key: 'AZURE_GPT_IMAGE_KEY',    label: 'AZURE_GPT_IMAGE_KEY (gpt-image-2)',      placeholder: 'azure cognitive services key' },
-  { key: 'AZURE_GPT_IMAGE_ENDPOINT', label: 'AZURE_GPT_IMAGE_ENDPOINT',             placeholder: 'https://*-swedencentral.cognitiveservices.azure.com', visible: true },
-  { key: 'AZURE_GPT_IMAGE_DEPLOYMENT', label: 'AZURE_GPT_IMAGE_DEPLOYMENT',         placeholder: 'gpt-image-2', visible: true },
-  { key: 'LITELLM_PROXY_KEY',      label: 'LITELLM_PROXY_KEY',                      placeholder: 'sk-... (LiteLLM proxy)' },
-  { key: 'LITELLM_PROXY_BASE_URL', label: 'LITELLM_PROXY_BASE_URL',                 placeholder: 'https://<your-proxy>/v1', visible: true },
 ];
 
 export function SettingsSectionsRegister() {
@@ -281,31 +267,10 @@ export function SettingsSectionsRegister() {
   const apiKeysNode = useMemo(() => {
     if (!data) return <div className="settings-loading">{t('common.loading')}</div>;
     return (
-      <>
-        <Section icon={<Key size={14} />} title="LLM / CLI Keys" hint={t('settings.apiKeys.llmHint')}>
-          <EnvField label="ANTHROPIC_API_KEY"  masked={envOf('ANTHROPIC_API_KEY')}  placeholder={t('settings.apiKeys.anthropicPlaceholder')} onSave={(v) => void patchEnv({ ANTHROPIC_API_KEY: v })} busy={busy} />
-          <EnvField label="ANTHROPIC_BASE_URL" masked={envOf('ANTHROPIC_BASE_URL')} placeholder="https://api.anthropic.com" onSave={(v) => void patchEnv({ ANTHROPIC_BASE_URL: v })} busy={busy} visible />
-          <EnvField label="OPENAI_API_KEY"     masked={envOf('OPENAI_API_KEY')}     placeholder="sk-..."                  onSave={(v) => void patchEnv({ OPENAI_API_KEY: v })} busy={busy} />
-          <EnvField label="OPENAI_BASE_URL"    masked={envOf('OPENAI_BASE_URL')}    placeholder="https://api.openai.com"  onSave={(v) => void patchEnv({ OPENAI_BASE_URL: v })} busy={busy} visible />
-          <EnvField label="GEMINI_API_KEY"     masked={envOf('GEMINI_API_KEY')}     placeholder="AIza..."                 onSave={(v) => void patchEnv({ GEMINI_API_KEY: v })} busy={busy} />
-        </Section>
-
-        <Section icon={<Key size={14} />} title={t('settings.apiKeys.multimodalTitle')} hint={t('settings.apiKeys.multimodalHint')}>
-          {MULTIMODAL_KEYS.map((k) => (
-            <EnvField
-              key={k.key}
-              label={k.key === 'ARK_IMAGE_KEY' ? t('settings.apiKeys.arkImageLabel')
-                : k.key === 'ARK_VIDEO_KEY' ? t('settings.apiKeys.arkVideoLabel')
-                : k.label}
-              masked={envOf(k.key)}
-              placeholder={k.placeholder}
-              onSave={(v) => void patchEnv({ [k.key]: v })}
-              busy={busy}
-              visible={k.visible}
-            />
-          ))}
-        </Section>
-      </>
+      <Section icon={<Key size={14} />} title="LiteLLM" hint={t('settings.apiKeys.llmHint')}>
+        <EnvField label="LITELLM_PROXY_KEY"      masked={envOf('LITELLM_PROXY_KEY')}      placeholder="sk-... (LiteLLM proxy)"  onSave={(v) => void patchEnv({ LITELLM_PROXY_KEY: v })} busy={busy} />
+        <EnvField label="LITELLM_PROXY_BASE_URL" masked={envOf('LITELLM_PROXY_BASE_URL')} placeholder="https://<your-proxy>/v1" onSave={(v) => void patchEnv({ LITELLM_PROXY_BASE_URL: v })} busy={busy} visible />
+      </Section>
     );
   }, [data, busy]);
 
