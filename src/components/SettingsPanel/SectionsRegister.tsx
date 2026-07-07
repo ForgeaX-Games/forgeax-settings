@@ -35,6 +35,7 @@ import { useAppStore } from '@forgeax/interface/store';
 import { useAgentPrefs, toggleAgentInstalled, setDefaultBootstrapAgent, requestAgentSeed } from '../../agent-prefs';
 import { AgentAvatarVideo } from '@forgeax/interface/components/AgentAvatarVideo/AgentAvatarVideo';
 import { useTranslation, type TFunction } from '@forgeax/interface/i18n';
+import { workbenchAgentsUrl } from '@forgeax/interface/lib/workbench-lang';
 import { foldAgents } from '@forgeax/interface/data/agent-groups';
 
 // ── shared state types (kept in sync with /api/settings) ─────────────────
@@ -537,7 +538,7 @@ interface WorkbenchAgent {
 }
 
 function AgentsBody() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [agents, setAgents] = useState<WorkbenchAgent[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   // ① 走 settings 自己的 agent-prefs 模块（bus 'prefs:agents'），L1 store 不再持有。
@@ -547,7 +548,7 @@ function AgentsBody() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/workbench/agents?lang=zh')
+    fetch(workbenchAgentsUrl())
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { agents: WorkbenchAgent[]; error?: string }) => {
         if (cancelled) return;
@@ -559,7 +560,7 @@ function AgentsBody() {
       })
       .catch((e: unknown) => { if (!cancelled) setErr((e as Error).message); });
     return () => { cancelled = true; };
-  }, []);
+  }, [i18n.language]);
 
   if (err) return <div className="settings-info"><div style={{ color: 'var(--err)' }}>{t('settings.agents.loadFailed', { error: err })}</div></div>;
   if (!agents) return <div className="settings-info dim">{t('common.loading')}</div>;
