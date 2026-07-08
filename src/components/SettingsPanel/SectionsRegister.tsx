@@ -37,6 +37,8 @@ import { AgentAvatarVideo } from '@forgeax/interface/components/AgentAvatarVideo
 import { useTranslation, type TFunction } from '@forgeax/interface/i18n';
 import { workbenchAgentsUrl } from '@forgeax/interface/lib/workbench-lang';
 import { foldAgents } from '@forgeax/interface/data/agent-groups';
+import { pickLang } from '@forgeax/interface/lib/bus-api';
+import { getLocale } from '@forgeax/interface/i18n';
 
 // ── shared state types (kept in sync with /api/settings) ─────────────────
 
@@ -694,7 +696,11 @@ function AgentsBody() {
           const total = item.members.length + item.providers.length;
           return (
             <div key={`skin-${item.group.id}`} style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 6 }}>
-              <AgentGroupDivider label={item.group.label} count={total} sublabel={item.group.sublabel} />
+              <AgentGroupDivider
+                label={pickLang(item.group.label, getLocale(), item.group.label.en)}
+                count={total}
+                sublabel={pickLang(item.group.sublabel, getLocale(), item.group.sublabel.en)}
+              />
               <SkinChipToggleRow members={item.members} uninstalledIds={uninstalledIds} toggle={toggle} />
               {item.providers.map((p) => (
                 <AgentRegisterRow
