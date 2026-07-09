@@ -4,7 +4,7 @@
   "private": false,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "forgeax settings L2 app — the unified settings overlay (sections registry, env/keys, plugins, changelog). Settings state lives in @forgeax/interface's L1 store; this package is the UI over it.",
+  "description": "forgeax settings L2 app — unified settings overlay, sections registry, env/keys, plugins, and changelog.",
   "repository": {
     "type": "git",
     "url": "https://github.com/ForgeaX-Games/forgeax-studio.git",
@@ -22,7 +22,10 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@forgeax/design": "workspace:*",
     "@forgeax/interface": "workspace:*",
+    "@forgeax/ai-workbench": "workspace:*",
+    "@forgeax/chat": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.2",
     "lucide-react": "^0.460.0",
     "react": "^19.0.0",

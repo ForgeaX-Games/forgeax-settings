@@ -17,7 +17,7 @@
  * so the new plugin appears in the BusAdminPanel immediately.
  */
 import { useState } from 'react';
-import { Section } from '@forgeax/interface/components/TopBar/SettingsDrawer';
+import { Section } from '@forgeax/interface/components/SettingsPrimitives';
 import { Download, ShieldAlert, ShieldCheck, AlertTriangle, FileWarning } from 'lucide-react';
 import { useTranslation } from '@forgeax/interface/i18n';
 
