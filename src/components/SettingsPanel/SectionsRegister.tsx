@@ -18,11 +18,11 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, Brain, Check, Command, Cpu, FlaskConical, GitFork, Globe, History, Info, Key, Network, Plug, RefreshCw, ShieldCheck, Sparkles, Trash2, User, Users } from 'lucide-react';
+import { Activity, Brain, Check, Command, Cpu, FlaskConical, GitFork, Globe, History, Info, Key, Network, Plug, RefreshCw, ShieldCheck, Sparkles, Trash2, UploadCloud, User, Users } from 'lucide-react';
 import { buildShortcuts, prettyCombo, type ShortcutDef } from '@forgeax/interface/lib/global-shortcuts';
 import { confirmDialog } from '@forgeax/interface/lib/dialog';
-import { resolveNaming } from '@forgeax/interface/lib/agent-name';
-import { Section, EnvField } from '@forgeax/interface/components/TopBar/SettingsDrawer';
+import { resolveNaming } from '@forgeax/ai-workbench/lib/agent-name';
+import { Section, EnvField, UploadPanel } from '@forgeax/interface/components/SettingsPrimitives';
 import { BusAdminPanel } from '@forgeax/interface/components/Bus/BusAdminPanel';
 import { useSettingsSection } from './store';
 import { BootSplashSection } from '@forgeax/interface/boot/SettingsSection';
@@ -31,12 +31,12 @@ import { LanguageSection } from '@forgeax/interface/i18n/LanguageSettingsSection
 import { ModelPicker } from '@forgeax/interface/components/ModelPicker';
 import { TrustPanel } from './TrustPanel';
 import { AuthorPanel } from './AuthorPanel';
-import { useAppStore } from '@forgeax/interface/store';
+import { useShellStore } from '@forgeax/interface/store';
 import { useAgentPrefs, toggleAgentInstalled, setDefaultBootstrapAgent, requestAgentSeed } from '../../agent-prefs';
-import { AgentAvatarVideo } from '@forgeax/interface/components/AgentAvatarVideo/AgentAvatarVideo';
+import { AgentAvatarVideo } from '@forgeax/ai-workbench/components/AgentAvatarVideo/AgentAvatarVideo';
 import { useTranslation, type TFunction } from '@forgeax/interface/i18n';
+import { foldAgents } from '@forgeax/ai-workbench/data/agent-groups';
 import { workbenchAgentsUrl } from '@forgeax/interface/lib/workbench-lang';
-import { foldAgents } from '@forgeax/interface/data/agent-groups';
 import {
   applyModelRoute,
   currentCatalogProvider,
@@ -75,7 +75,7 @@ export function SettingsSectionsRegister() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   // Providers panel: the derived "active model source".
-  const providerOverride = useAppStore((s) => s.providerOverride);
+  const providerOverride = useShellStore((s) => s.providerOverride);
   const [tests, setTests] = useState<Record<string, { status: 'running' | 'ok' | 'err'; totalMs?: number; ttftMs?: number; sawTool?: boolean; err?: string; ranAt?: number }>>({});
   const inFlightTests = useRef<Set<AbortController>>(new Set());
 
@@ -119,8 +119,8 @@ export function SettingsSectionsRegister() {
   // Legacy deep-links (api-keys / cli-providers) now resolve to the merged
   // Providers section — redirect so old `openOverlay('settings', 'cli-providers')`
   // call sites still land somewhere valid.
-  const overlayParam = useAppStore((s) => s.overlayParam);
-  const setOverlayParam = useAppStore((s) => s.setOverlayParam);
+  const overlayParam = useShellStore((s) => s.overlayParam);
+  const setOverlayParam = useShellStore((s) => s.setOverlayParam);
   useEffect(() => {
     if (overlayParam === 'api-keys' || overlayParam === 'cli-providers') setOverlayParam('providers');
   }, [overlayParam, setOverlayParam]);
@@ -129,6 +129,23 @@ export function SettingsSectionsRegister() {
     setToast({ kind, text });
     setTimeout(() => setToast(null), 2500);
   };
+
+  // LLM 鉴权/路由 key —— 改这些会换掉「代理暴露哪些模型」(尤其切 LiteLLM 代理),
+  // 故保存成功后要强制重拉模型目录(浏览器 window 缓存不会自己失效)。镜像 server 侧
+  // SIDECAR_CRED_KEYS(cli/src/api/settings.ts)。Ported from interface
+  // SettingsDrawer d915c80 (the drawer itself was deleted in the refactor).
+  const LLM_CRED_KEYS = new Set([
+    'ANTHROPIC_API_KEY',
+    'ANTHROPIC_AUTH_TOKEN',
+    'ANTHROPIC_BASE_URL',
+    'OPENAI_API_KEY',
+    'OPENAI_BASE_URL',
+    'GEMINI_API_KEY',
+    'LITELLM_PROXY_KEY',
+    'LITELLM_PROXY_BASE_URL',
+    'DEEPSEEK_API_KEY',
+    'DEEPSEEK_BASE_URL',
+  ]);
 
   const patchEnv = async (patch: Record<string, string>) => {
     setBusy(true);
@@ -140,7 +157,18 @@ export function SettingsSectionsRegister() {
       });
       const j = (await r.json()) as { ok?: boolean; error?: string; touched?: number };
       if (!r.ok || !j.ok) flash('err', j.error ?? `HTTP ${r.status}`);
-      else { flash('ok', t('settings.env.saved', { count: j.touched ?? 0 })); await reload(); }
+      else {
+        flash('ok', t('settings.env.saved', { count: j.touched ?? 0 }));
+        await reload();
+        // 改了 LLM 凭据 → 强制重拉模型目录(新 key/base-url 可能换掉可用模型;server 侧
+        // 缓存按 key 自失效,但浏览器 window 缓存不会 → 这里主动刷,让选择器免刷新即更新)。
+        if (Object.keys(patch).some((k) => LLM_CRED_KEYS.has(k))) {
+          try {
+            const { refreshAllModelCatalogs } = await import('@forgeax/interface/components/ModelPicker/useModelCatalog');
+            await refreshAllModelCatalogs();
+          } catch { /* 模型刷新失败不影响凭据已保存 */ }
+        }
+      }
     } catch (e) {
       flash('err', (e as Error).message);
     } finally { setBusy(false); }
@@ -237,9 +265,9 @@ export function SettingsSectionsRegister() {
       // this auto-creates a fresh main session and reconnects. Guard so a
       // failure here still only flashes (never throws into the click handler).
       try {
-        const { disconnectForgeaXWs } = await import('@forgeax/interface/lib/forgeax-bridge');
+        const { disconnectForgeaXWs } = await import('@forgeax/chat/session-store');
         disconnectForgeaXWs();
-        await useAppStore.getState().initSessions();
+        await useShellStore.getState().initSessions();
       } catch (e) {
         console.warn('[resetSessions] re-init after reset failed', e);
       }
@@ -268,7 +296,7 @@ export function SettingsSectionsRegister() {
       // point at a deleted game, so Play/Edit iframes follow to a live game
       // (or the "Loading..." placeholder) instead of a 404'd iframe.
       try {
-        useAppStore.getState().setPinnedSlug(j.activeSlug ?? null);
+        useShellStore.getState().setPinnedSlug(j.activeSlug ?? null);
       } catch (e) {
         console.warn('[resetGames] re-pin after reset failed', e);
       }
@@ -519,6 +547,41 @@ export function SettingsSectionsRegister() {
     </Section>
   ), []);
 
+  const uploadNode = useMemo(() => {
+    if (!data) return <div className="settings-loading">{t('common.loading')}</div>;
+    return (
+      <Section icon={<UploadCloud size={14} />} title="Upload" hint="把当前 workspace 的 .forgeax 创作内容上传到 GitHub 仓(聊天里的 /upload 命令等效)。">
+        <EnvField
+          label="FORGEAX_UPLOAD_GITHUB_TOKEN"
+          masked={envOf('FORGEAX_UPLOAD_GITHUB_TOKEN')}
+          placeholder="粘贴 GitHub token(经典或 fine-grained,共享或个人)"
+          onSave={(v) => void patchEnv({ FORGEAX_UPLOAD_GITHUB_TOKEN: v })}
+          busy={busy}
+        />
+        <EnvField
+          label="FORGEAX_UPLOAD_REPO"
+          masked={envOf('FORGEAX_UPLOAD_REPO')}
+          placeholder="owner/repo"
+          onSave={(v) => void patchEnv({ FORGEAX_UPLOAD_REPO: v })}
+          busy={busy}
+          visible
+        />
+        <EnvField
+          label="FORGEAX_UPLOAD_BRANCH"
+          masked={envOf('FORGEAX_UPLOAD_BRANCH')}
+          placeholder="main"
+          onSave={(v) => void patchEnv({ FORGEAX_UPLOAD_BRANCH: v })}
+          busy={busy}
+          visible
+        />
+        <div className="settings-help">
+          默认传到共享仓;也可以改成任何你的 token 有写权限的仓(如自己账号下的仓)。分支默认 main。
+        </div>
+        <UploadPanel tokenSet={!!envOf('FORGEAX_UPLOAD_GITHUB_TOKEN')} />
+      </Section>
+    );
+  }, [data, busy]);
+
   const agentsNode = useMemo(() => (
     <Section icon={<Users size={14} />} title="Agents" hint={t('settings.agents.hint')}>
       <AgentsBody />
@@ -535,6 +598,7 @@ export function SettingsSectionsRegister() {
   useSettingsSection({ id: 'models',        label: 'Models',        priority: 80, group: 'config',  icon: Cpu,     node: modelsNode });
   useSettingsSection({ id: 'model-lab',     label: 'Model Lab',     priority: 75, group: 'config',  icon: FlaskConical, node: modelLabNode });
   useSettingsSection({ id: 'usage',         label: t('settings.usage.title'),          priority: 67, group: 'config',  icon: Activity, node: usageNode });
+  useSettingsSection({ id: 'upload',        label: 'Upload',        priority: 66.5, group: 'config',  icon: UploadCloud, node: uploadNode });
   useSettingsSection({ id: 'language',      label: 'Language',      priority: 66, group: 'system',  icon: Globe,   node: <LanguageSection /> });
   useSettingsSection({ id: 'boot-splash',   label: 'Boot Splash',   priority: 65, group: 'system',  icon: Sparkles, node: <BootSplashSection /> });
   useSettingsSection({ id: 'memory',        label: '记忆 Memory',   priority: 64, group: 'system',  icon: Brain,   node: <MemorySettingsSection /> });
@@ -811,9 +875,9 @@ function AgentsBody() {
           return (
             <div key={`skin-${item.group.id}`} style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 6 }}>
               <AgentGroupDivider
-                label={pickLang(item.group.label, getLocale(), item.group.label.en)}
+                label={item.group.label}
                 count={total}
-                sublabel={pickLang(item.group.sublabel, getLocale(), item.group.sublabel.en)}
+                sublabel={item.group.sublabel}
               />
               <SkinChipToggleRow members={item.members} uninstalledIds={uninstalledIds} toggle={toggle} />
               {item.providers.map((p) => (
@@ -1130,12 +1194,13 @@ function MdLite({ text }: { text: string }) {
 const GROUP_LABEL: Record<ShortcutDef['group'], string> = {
   layout:  'settings.shortcuts.groups.layout',
   mode:    'settings.shortcuts.groups.mode',
+  edit:    'settings.shortcuts.groups.edit',
   overlay: 'settings.shortcuts.groups.overlay',
   focus:   'settings.shortcuts.groups.focus',
   general: 'settings.shortcuts.groups.general',
 };
 
-const GROUP_ORDER: Array<ShortcutDef['group']> = ['layout', 'overlay', 'mode', 'focus', 'general'];
+const GROUP_ORDER: Array<ShortcutDef['group']> = ['layout', 'overlay', 'mode', 'edit', 'focus', 'general'];
 
 function ShortcutsBody() {
   const { t } = useTranslation();

@@ -11,7 +11,7 @@
  *                                     selection UI not yet in this panel.
  */
 import { useEffect, useState } from 'react';
-import { Section } from '@forgeax/interface/components/TopBar/SettingsDrawer';
+import { Section } from '@forgeax/interface/components/SettingsPrimitives';
 import { GitFork, Mic, RefreshCw } from 'lucide-react';
 import { useTranslation } from '@forgeax/interface/i18n';
 

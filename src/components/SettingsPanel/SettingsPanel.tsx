@@ -28,7 +28,7 @@
 import { useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { useAppStore } from '@forgeax/interface/store';
+import { useShellStore } from '@forgeax/interface/store';
 import { useTranslation } from '@forgeax/interface/i18n';
 import { useSettingsSections, type SettingsGroup, type SettingsSection } from './store';
 import './SettingsPanel.css';
@@ -37,10 +37,10 @@ const GROUP_ORDER: SettingsGroup[] = ['config', 'plugin', 'system', 'account', '
 
 export function SettingsPanel() {
   const { t } = useTranslation();
-  const open = useAppStore((s) => s.activeOverlay === 'settings');
-  const closeOverlay = useAppStore((s) => s.closeOverlay);
-  const activeId = useAppStore((s) => s.overlayParam);
-  const setActive = useAppStore((s) => s.setOverlayParam);
+  const open = useShellStore((s) => s.activeOverlay === 'settings');
+  const closeOverlay = useShellStore((s) => s.closeOverlay);
+  const activeId = useShellStore((s) => s.overlayParam);
+  const setActive = useShellStore((s) => s.setOverlayParam);
   const sections = useSettingsSections();
 
   const sorted = useMemo(
