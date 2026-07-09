@@ -18,7 +18,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, Brain, Command, Cpu, FlaskConical, GitFork, Globe, History, Info, Key, Network, Plug, RefreshCw, ShieldCheck, Sparkles, Trash2, User, Users } from 'lucide-react';
+import { Activity, Brain, Check, Command, Cpu, FlaskConical, GitFork, Globe, History, Info, Key, Network, Plug, RefreshCw, ShieldCheck, Sparkles, Trash2, User, Users } from 'lucide-react';
 import { buildShortcuts, prettyCombo, type ShortcutDef } from '@forgeax/interface/lib/global-shortcuts';
 import { confirmDialog } from '@forgeax/interface/lib/dialog';
 import { resolveNaming } from '@forgeax/interface/lib/agent-name';
@@ -37,6 +37,13 @@ import { AgentAvatarVideo } from '@forgeax/interface/components/AgentAvatarVideo
 import { useTranslation, type TFunction } from '@forgeax/interface/i18n';
 import { workbenchAgentsUrl } from '@forgeax/interface/lib/workbench-lang';
 import { foldAgents } from '@forgeax/interface/data/agent-groups';
+import {
+  applyModelRoute,
+  currentCatalogProvider,
+  deriveActiveSource,
+  resetOpenSessionsModelToProviderDefault,
+  type ActiveSourceId,
+} from '@forgeax/interface/lib/model-route';
 import { pickLang } from '@forgeax/interface/lib/bus-api';
 import { getLocale } from '@forgeax/interface/i18n';
 
@@ -67,6 +74,8 @@ export function SettingsSectionsRegister() {
   const [providersCachedAt, setProvidersCachedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // Providers panel: the derived "active model source".
+  const providerOverride = useAppStore((s) => s.providerOverride);
   const [tests, setTests] = useState<Record<string, { status: 'running' | 'ok' | 'err'; totalMs?: number; ttftMs?: number; sawTool?: boolean; err?: string; ranAt?: number }>>({});
   const inFlightTests = useRef<Set<AbortController>>(new Set());
 
@@ -92,7 +101,13 @@ export function SettingsSectionsRegister() {
       try {
         const { fetchCliProviders } = await import('@forgeax/interface/lib/cli-providers');
         const { providers, cachedAt } = await fetchCliProviders(force);
-        setProviders(providers as unknown as ProviderRow[]);
+        // The native ForgeaX kernel (forgeax-core / forgeax) is registered in the
+        // shared kernel registry, so /api/cli/health surfaces it too — but it is
+        // NOT a connectable "Local CLI". The Local CLI section lists external
+        // rented CLIs only (claude-code / codex / cursor-agent), so drop it here.
+        const NATIVE_KERNEL_IDS = new Set(['forgeax-core', 'forgeax']);
+        const cliOnly = providers.filter((p) => !NATIVE_KERNEL_IDS.has(p.id));
+        setProviders(cliOnly as unknown as ProviderRow[]);
         setProvidersCachedAt(cachedAt);
       } catch { /* */ }
     })();
@@ -100,6 +115,15 @@ export function SettingsSectionsRegister() {
     try { await p; } finally { reloadInFlight.current = null; }
   };
   useEffect(() => { void reload(); void reloadProviders(); }, []);
+
+  // Legacy deep-links (api-keys / cli-providers) now resolve to the merged
+  // Providers section — redirect so old `openOverlay('settings', 'cli-providers')`
+  // call sites still land somewhere valid.
+  const overlayParam = useAppStore((s) => s.overlayParam);
+  const setOverlayParam = useAppStore((s) => s.setOverlayParam);
+  useEffect(() => {
+    if (overlayParam === 'api-keys' || overlayParam === 'cli-providers') setOverlayParam('providers');
+  }, [overlayParam, setOverlayParam]);
 
   const flash = (kind: 'ok' | 'err', text: string) => {
     setToast({ kind, text });
@@ -267,15 +291,137 @@ export function SettingsSectionsRegister() {
     </div>
   ), []);
 
-  const apiKeysNode = useMemo(() => {
+  // Consolidated "Providers" — API Key + local CLI, each with a
+  // "set as active" control that derives from (providerOverride, FORGEAX_MODEL).
+  const activeSource: ActiveSourceId = deriveActiveSource(providerOverride, envOf('FORGEAX_MODEL'));
+  const useModelSource = async (
+    source: Parameters<typeof applyModelRoute>[0],
+    label: string,
+  ) => {
+    setBusy(true);
+    try {
+      const prevCatalog = currentCatalogProvider(providerOverride);
+      // Switching source flips every open session onto a DIFFERENT model catalog —
+      // the previously pinned model no longer belongs to it. Requirement: reset ALL
+      // open sessions' current model to the new source's default. Do this BEFORE
+      // flipping providerOverride so agent.json is already rewritten when the chat
+      // composer re-reads on the providerOverride change (write-then-flip avoids the
+      // composer racing the reset and painting the stale model).
+      //
+      //   • cli     → that driver's own catalog (providerId).
+      //   • api-key → the native forgeax catalog (listModels(null) — the
+      //     litellm-merged list). The composer shows the PER-SESSION agent.json
+      //     model (not FORGEAX_MODEL), so a native switch must reset sessions too,
+      //     else they keep the old CLI model. We also route FORGEAX_MODEL to that
+      //     same catalog default so picker == FORGEAX_MODEL == runtime agree — and
+      //     never fall through to the hardcoded gpt-4o-mini apiModel fallback.
+      let route = source;
+      if (source.kind === 'cli' && source.providerId !== prevCatalog) {
+        await resetOpenSessionsModelToProviderDefault(source.providerId);
+      } else if (source.kind === 'api-key' && prevCatalog !== null) {
+        const res = await resetOpenSessionsModelToProviderDefault(null);
+        if (res?.selected) route = { kind: 'api-key', model: res.selected };
+      }
+      await applyModelRoute(route);
+      await reload();
+      flash('ok', t('settings.providers.switched', { source: label }));
+    } catch (e) {
+      flash('err', (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const providersNode = useMemo(() => {
     if (!data) return <div className="settings-loading">{t('common.loading')}</div>;
+    // "Use LiteLLM" is eligible only when BOTH the proxy key and base URL are
+    // persisted in .env. Reads from /api/settings (the install-global .env, see
+    // envFilePath in cli/api/settings.ts), so the button state survives a
+    // refresh and a workspace switch — it's no longer tied to transient page
+    // state that vanished on reload.
+    const litellmKeyPresent = (envOf('LITELLM_PROXY_KEY') ?? '').length > 0;
+    const litellmUrlPresent = (envOf('LITELLM_PROXY_BASE_URL') ?? '').length > 0;
+    const apiKeyPresent = litellmKeyPresent && litellmUrlPresent;
+    const currentModel = envOf('FORGEAX_MODEL') ?? '';
+    const apiModel = currentModel || 'gpt-4o-mini';
+
     return (
-      <Section icon={<Key size={14} />} title="LiteLLM" hint={t('settings.apiKeys.llmHint')}>
-        <EnvField label="LITELLM_PROXY_KEY"      masked={envOf('LITELLM_PROXY_KEY')}      placeholder="sk-... (LiteLLM proxy)"  onSave={(v) => void patchEnv({ LITELLM_PROXY_KEY: v })} busy={busy} />
-        <EnvField label="LITELLM_PROXY_BASE_URL" masked={envOf('LITELLM_PROXY_BASE_URL')} placeholder="https://<your-proxy>/v1" onSave={(v) => void patchEnv({ LITELLM_PROXY_BASE_URL: v })} busy={busy} visible />
-      </Section>
+      <div className="sp-providers">
+        {/* ① LiteLLM proxy — the single BYO credential. The key/url are mirrored
+            to ANTHROPIC_* on save (see onSave) because the native forgeax-core
+            kernel speaks the anthropic-messages protocol against ANTHROPIC_BASE_URL
+            + ANTHROPIC_API_KEY; a LiteLLM proxy answers that protocol, so mirroring
+            makes ONE config drive both the model catalog and native inference. */}
+        <Section icon={<Key size={14} />} title={t('settings.providers.api.title')} hint={t('settings.providers.api.hint')}>
+          <EnvField label="LITELLM_PROXY_BASE_URL" masked={envOf('LITELLM_PROXY_BASE_URL')} placeholder="https://your-litellm-host" onSave={(v) => void patchEnv({ LITELLM_PROXY_BASE_URL: v, ANTHROPIC_BASE_URL: v })} busy={busy} visible />
+          <EnvField label="LITELLM_PROXY_KEY" masked={envOf('LITELLM_PROXY_KEY')} placeholder="sk-..." onSave={(v) => void patchEnv({ LITELLM_PROXY_KEY: v, ANTHROPIC_API_KEY: v })} busy={busy} />
+          <div className="settings-provider-row" style={{ marginTop: 8 }}>
+            <div className="settings-provider-head">
+              <span className="settings-provider-name">{t('settings.providers.api.useLabel')}</span>
+              <UseControl id="api-key" activeSource={activeSource} eligible={apiKeyPresent} reason={t('settings.providers.api.useReason')} onUse={() => void useModelSource({ kind: 'api-key', model: apiModel }, t('settings.providers.api.title'))} t={t} busy={busy} />
+            </div>
+          </div>
+        </Section>
+
+        {/* ② Local CLI */}
+        <Section icon={<Plug size={14} />} title={t('settings.providers.cli.title')} hint={t('settings.providers.cli.hint')}>
+          {!providers && <div className="settings-help">{t('common.loading')}</div>}
+          {providers && providers.length === 0 && <div className="settings-help">{t('settings.cliProviders.none')}</div>}
+          {providers?.map((p) => {
+            const caps = Object.entries(p.capabilities).filter(([, v]) => v).map(([k]) => k);
+            const tr = tests[p.id];
+            return (
+              <div key={p.id} className={`settings-provider-row ${!p.health.ok ? 'is-down' : ''}`}>
+                <div className="settings-provider-head">
+                  <code className="settings-provider-id">{p.id}</code>
+                  <span className="settings-provider-name">{p.displayName}</span>
+                  <span className={p.health.ok ? 'ok-pill' : 'err-pill'}>
+                    {p.health.ok ? t('settings.providers.cli.healthy') : t('settings.providers.cli.unavailable')}
+                  </span>
+                  <UseControl id={p.id} activeSource={activeSource} eligible={p.health.ok} reason={t('settings.providers.cli.useReason')} onUse={() => void useModelSource({ kind: 'cli', providerId: p.id }, p.displayName)} t={t} busy={busy} />
+                </div>
+                {p.health.detail && <div className="settings-help" title={p.health.detail}>{p.health.detail}</div>}
+                <div className="settings-provider-caps">
+                  {caps.map((c) => <span key={c} className="settings-cap-chip">{c}</span>)}
+                </div>
+                <div className="settings-provider-test">
+                  {/* Test stays clickable even when health reports "unavailable":
+                      the health probe is a coarse `--version` check that can lag or
+                      false-negative, while Test does the authoritative 1-token round
+                      trip. Clicking also re-probes health (reloadProviders) so a
+                      recovered CLI flips its badge green. Only disabled mid-run. */}
+                  <button type="button" className="settings-edit-btn" onClick={() => { void reloadProviders(true); void testProvider(p.id); }} disabled={tr?.status === 'running'}>
+                    {tr?.status === 'running' ? t('settings.cliProviders.testing') : 'Test'}
+                  </button>
+                  {tr && tr.status !== 'running' && (
+                    <span className={`settings-test-result ${tr.status === 'ok' ? 'is-ok' : 'is-err'}`}>
+                      {tr.status === 'ok'
+                        ? tr.ttftMs !== undefined
+                          ? `✓ ttft ${Math.round(tr.ttftMs)}ms · total ${Math.round(tr.totalMs ?? 0)}ms`
+                          : tr.sawTool
+                            ? `✓ done · ${Math.round(tr.totalMs ?? 0)}ms (tool-only turn)`
+                            : `✓ silent done · ${Math.round(tr.totalMs ?? 0)}ms`
+                        : `✗ ${tr.err?.slice(0, 80) ?? 'failed'}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ display: 'flex', gap: 6, marginTop: 4, alignItems: 'center' }}>
+            <button className="settings-edit-btn" onClick={() => void reloadProviders(true)} disabled={busy}>
+              <RefreshCw size={11} /> {t('settings.refresh')}
+            </button>
+            {providersCachedAt && (
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginLeft: 'auto' }}>
+                {t('settings.cliProviders.snapshotAge', { seconds: Math.round((Date.now() - providersCachedAt) / 1000) })}
+              </span>
+            )}
+          </div>
+        </Section>
+      </div>
     );
-  }, [data, busy]);
+  }, [data, busy, providers, providersCachedAt, tests, activeSource, t]);
 
   const modelsNode = useMemo(() => {
     if (!data) return <div className="settings-loading">{t('common.loading')}</div>;
@@ -306,67 +452,6 @@ export function SettingsSectionsRegister() {
       <ModelLabBody />
     </Section>
   ), []);
-
-  const cliProvidersNode = useMemo(() => (
-    <Section icon={<Plug size={14} />} title="CLI Providers" hint={t('settings.cliProviders.hint')}>
-      {!providers && <div className="settings-help">{t('common.loading')}</div>}
-      {providers && providers.length === 0 && (
-        <div className="settings-help">{t('settings.cliProviders.none')}</div>
-      )}
-      {providers?.map((p) => {
-        const caps = Object.entries(p.capabilities).filter(([, v]) => v).map(([k]) => k);
-        const tr = tests[p.id];
-        return (
-          <div key={p.id} className={`settings-provider-row ${!p.health.ok ? 'is-down' : ''}`}>
-            <div className="settings-provider-head">
-              <code className="settings-provider-id">{p.id}</code>
-              <span className="settings-provider-name">{p.displayName}</span>
-              <span className={p.health.ok ? 'ok-pill' : 'err-pill'}>
-                {p.health.ok ? t('settings.cliProviders.healthy') : t('settings.cliProviders.unavailable')}
-              </span>
-            </div>
-            {p.health.detail && (
-              <div className="settings-help" title={p.health.detail}>{p.health.detail}</div>
-            )}
-            <div className="settings-provider-caps">
-              {caps.map((c) => <span key={c} className="settings-cap-chip">{c}</span>)}
-            </div>
-            <div className="settings-provider-test">
-              <button
-                type="button"
-                className="settings-edit-btn"
-                onClick={() => void testProvider(p.id)}
-                disabled={tr?.status === 'running' || !p.health.ok}
-              >
-                {tr?.status === 'running' ? t('settings.cliProviders.testing') : 'Test'}
-              </button>
-              {tr && tr.status !== 'running' && (
-                <span className="settings-help" style={{ display: 'inline', marginLeft: 8 }}>
-                  {tr.status === 'ok'
-                    ? tr.ttftMs !== undefined
-                      ? `✓ ttft ${Math.round(tr.ttftMs)}ms · total ${Math.round(tr.totalMs ?? 0)}ms`
-                      : tr.sawTool
-                        ? `✓ done · ${Math.round(tr.totalMs ?? 0)}ms (tool-only turn)`
-                        : `✓ silent done · ${Math.round(tr.totalMs ?? 0)}ms`
-                    : `✗ ${tr.err?.slice(0, 80) ?? 'failed'}`}
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      })}
-      <div style={{ display: 'flex', gap: 6, marginTop: 4, alignItems: 'center' }}>
-        <button className="settings-edit-btn" onClick={() => void reloadProviders(true)} disabled={busy}>
-          <RefreshCw size={11} /> {t('settings.refresh')}
-        </button>
-        {providersCachedAt && (
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginLeft: 'auto' }}>
-            {t('settings.cliProviders.snapshotAge', { seconds: Math.round((Date.now() - providersCachedAt) / 1000) })}
-          </span>
-        )}
-      </div>
-    </Section>
-  ), [providers, providersCachedAt, busy, tests]);
 
   const workspaceNode = useMemo(() => {
     if (!data) return <div className="settings-loading">{t('common.loading')}</div>;
@@ -446,10 +531,9 @@ export function SettingsSectionsRegister() {
   useSettingsSection({ id: 'agents',        label: 'Agents',        priority: 94, group: 'plugin',  icon: Users, node: agentsNode });
   useSettingsSection({ id: 'fxpack',        label: t('settings.sections.fxpackImport'),  priority: 92, group: 'plugin',  icon: ShieldCheck, node: <TrustPanel /> });
   useSettingsSection({ id: 'author',        label: t('settings.sections.forkRecord'),   priority: 91, group: 'plugin',  icon: GitFork, node: <AuthorPanel /> });
-  useSettingsSection({ id: 'api-keys',      label: 'API Keys',      priority: 90, group: 'config',  icon: Key,     node: apiKeysNode });
+  useSettingsSection({ id: 'providers',     label: 'Providers',     priority: 90, group: 'config',  icon: Plug,    node: providersNode });
   useSettingsSection({ id: 'models',        label: 'Models',        priority: 80, group: 'config',  icon: Cpu,     node: modelsNode });
   useSettingsSection({ id: 'model-lab',     label: 'Model Lab',     priority: 75, group: 'config',  icon: FlaskConical, node: modelLabNode });
-  useSettingsSection({ id: 'cli-providers', label: 'CLI Providers', priority: 70, group: 'config',  icon: Plug,    node: cliProvidersNode });
   useSettingsSection({ id: 'usage',         label: t('settings.usage.title'),          priority: 67, group: 'config',  icon: Activity, node: usageNode });
   useSettingsSection({ id: 'language',      label: 'Language',      priority: 66, group: 'system',  icon: Globe,   node: <LanguageSection /> });
   useSettingsSection({ id: 'boot-splash',   label: 'Boot Splash',   priority: 65, group: 'system',  icon: Sparkles, node: <BootSplashSection /> });
@@ -460,11 +544,41 @@ export function SettingsSectionsRegister() {
   useSettingsSection({ id: 'changelog',     label: 'Changelog',     priority: 45, group: 'about',   icon: History, node: changelogNode });
   useSettingsSection({ id: 'about',         label: 'About',         priority: 40, group: 'about',   icon: Info,    node: aboutNode });
 
-  return toast ? (
-    <div className={`settings-toast ${toast.kind}`} style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 'var(--z-toast)' }}>
-      {toast.text}
-    </div>
-  ) : null;
+  return (
+    <>
+      {toast && (
+        <div className={`settings-toast ${toast.kind}`} style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 'var(--z-toast)' }}>
+          {toast.text}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Providers helpers ─────────────────────────────────────────────────────
+
+/** "Set as active" / "In use" control for a model source (Providers panel). */
+function UseControl({ id, activeSource, eligible, reason, onUse, t, busy }: {
+  id: string; activeSource: ActiveSourceId; eligible: boolean; reason?: string;
+  onUse: () => void; t: TFunction; busy: boolean;
+}) {
+  if (activeSource === id) {
+    return (
+      <span className="use-pill">
+        <Check size={11} /> {t('settings.providers.inUse')}
+      </span>
+    );
+  }
+  return (
+    <button
+      className="settings-edit-btn use-btn"
+      disabled={!eligible || busy}
+      title={!eligible ? (reason ?? '') : ''}
+      onClick={onUse}
+    >
+      {t('settings.providers.setActive')}
+    </button>
+  );
 }
 
 // ── About / Changelog · live data ────────────────────────────────────────

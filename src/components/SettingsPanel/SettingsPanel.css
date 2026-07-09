@@ -144,3 +144,25 @@
   margin: -8px -8px 0;
   padding: 0 8px;
 }
+
+/* Providers panel body — carry the bottom breathing room as CONTENT padding so
+   the last action row never sticks to the panel edge (a scroll container's own
+   padding-bottom is dropped at scroll-end in some engines). */
+.sp-providers { padding-bottom: 4px; }
+
+/* ── Providers panel: "set as active" / "in use" affordance ── */
+.use-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  background: rgba(212, 255, 72, 0.14);
+  color: var(--primary, #d4ff48);
+  border: 1px solid rgba(212, 255, 72, 0.35);
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.use-btn { margin-left: auto; }
