@@ -1,9 +1,8 @@
 // @forgeax/settings — public entry for the settings L2 app.
 //
-// The unified settings overlay (sections registry + built-in sections). The
-// shell overlay slot still lives in @forgeax/interface as generic
-// activeOverlay/overlayParam state; settings sections, prefs, and product
-// content are owned here and injected by studio.
+// The unified settings overlay (sections registry + built-in sections). Its
+// DATA (settingsOpen / settingsSection / keys / plugins) lives in
+// @forgeax/interface's L1 store; this package is the presentation over it.
 // studio (L3) injects it via the interface `renderSettings` slot (which mounts
 // both the sections register side-effect and the panel); interface (L1) never
 // imports this package.
