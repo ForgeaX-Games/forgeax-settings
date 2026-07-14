@@ -44,7 +44,7 @@ import {
   resetOpenSessionsModelToProviderDefault,
   type ActiveSourceId,
 } from '@forgeax/interface/lib/model-route';
-import { pickLang } from '@forgeax/interface/lib/bus-api';
+import { pickLang } from '@forgeax/interface/lib/extension-api';
 import { getLocale } from '@forgeax/interface/i18n';
 
 // ── shared state types (kept in sync with /api/settings) ─────────────────
