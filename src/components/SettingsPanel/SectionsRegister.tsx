@@ -71,6 +71,9 @@ export function SettingsSectionsRegister() {
   const { t } = useTranslation();
   const [data, setData] = useState<SettingsData | null>(null);
   const [providers, setProviders] = useState<ProviderRow[] | null>(null);
+  // The native ForgeaX kernel (forgeax-core) surfaced by /api/cli/health, kept
+  // apart from the rented-CLI list so it renders as its own first-class card.
+  const [nativeProvider, setNativeProvider] = useState<ProviderRow | null>(null);
   const [providersCachedAt, setProvidersCachedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
@@ -103,10 +106,13 @@ export function SettingsSectionsRegister() {
         const { providers, cachedAt } = await fetchCliProviders(force);
         // The native ForgeaX kernel (forgeax-core / forgeax) is registered in the
         // shared kernel registry, so /api/cli/health surfaces it too — but it is
-        // NOT a connectable "Local CLI". The Local CLI section lists external
-        // rented CLIs only (claude-code / codex / cursor-agent), so drop it here.
+        // NOT a rented "Local CLI". Split it out: it gets its own dedicated card
+        // (the default, flagship option) above the Local CLI list, which stays
+        // reserved for external rented CLIs (claude-code / codex / cursor-agent).
         const NATIVE_KERNEL_IDS = new Set(['forgeax-core', 'forgeax']);
+        const native = providers.find((p) => NATIVE_KERNEL_IDS.has(p.id)) ?? null;
         const cliOnly = providers.filter((p) => !NATIVE_KERNEL_IDS.has(p.id));
+        setNativeProvider(native as unknown as ProviderRow | null);
         setProviders(cliOnly as unknown as ProviderRow[]);
         setProvidersCachedAt(cachedAt);
       } catch { /* */ }
@@ -369,29 +375,77 @@ export function SettingsSectionsRegister() {
     // state that vanished on reload.
     const litellmKeyPresent = (envOf('LITELLM_PROXY_KEY') ?? '').length > 0;
     const litellmUrlPresent = (envOf('LITELLM_PROXY_BASE_URL') ?? '').length > 0;
-    const apiKeyPresent = litellmKeyPresent && litellmUrlPresent;
     const currentModel = envOf('FORGEAX_MODEL') ?? '';
     const apiModel = currentModel || 'gpt-4o-mini';
+    // The native kernel is the DEFAULT path (providerOverride=null); it speaks the
+    // anthropic-messages protocol and resolves any configured credential — a
+    // LiteLLM proxy OR a direct vendor key. So it's selectable whenever ANY native
+    // credential OR a pinned FORGEAX_MODEL exists, not only when LiteLLM is set
+    // (the old, overly-narrow gate that hid the flagship kernel behind LiteLLM).
+    const nativeCredPresent = (litellmKeyPresent && litellmUrlPresent)
+      || (envOf('ANTHROPIC_API_KEY') ?? '').length > 0
+      || (envOf('ANTHROPIC_AUTH_TOKEN') ?? '').length > 0
+      || (envOf('OPENAI_API_KEY') ?? '').length > 0
+      || (envOf('GEMINI_API_KEY') ?? '').length > 0
+      || (envOf('DEEPSEEK_API_KEY') ?? '').length > 0;
+    const nativeEligible = nativeCredPresent || currentModel.length > 0;
+    const nativeCaps = nativeProvider
+      ? Object.entries(nativeProvider.capabilities).filter(([, v]) => v).map(([k]) => k)
+      : [];
+    const nativeTest = tests['forgeax-core'];
 
     return (
       <div className="sp-providers">
-        {/* ① LiteLLM proxy — the single BYO credential. The key/url are mirrored
-            to ANTHROPIC_* on save (see onSave) because the native forgeax-core
-            kernel speaks the anthropic-messages protocol against ANTHROPIC_BASE_URL
-            + ANTHROPIC_API_KEY; a LiteLLM proxy answers that protocol, so mirroring
-            makes ONE config drive both the model catalog and native inference. */}
-        <Section icon={<Key size={14} />} title={t('settings.providers.api.title')} hint={t('settings.providers.api.hint')}>
-          <EnvField label="LITELLM_PROXY_BASE_URL" masked={envOf('LITELLM_PROXY_BASE_URL')} placeholder="https://your-litellm-host" onSave={(v) => void patchEnv({ LITELLM_PROXY_BASE_URL: v, ANTHROPIC_BASE_URL: v })} busy={busy} visible />
-          <EnvField label="LITELLM_PROXY_KEY" masked={envOf('LITELLM_PROXY_KEY')} placeholder="sk-..." onSave={(v) => void patchEnv({ LITELLM_PROXY_KEY: v, ANTHROPIC_API_KEY: v })} busy={busy} />
-          <div className="settings-provider-row" style={{ marginTop: 8 }}>
+        {/* ① Native ForgeaX kernel — the built-in, default flagship path
+            (providerOverride=null). Rendered as its own first-class card, above
+            the rented CLIs, so it's always discoverable and selectable. Its
+            credential is fed below (LiteLLM proxy or a direct vendor key). */}
+        <Section icon={<Cpu size={14} />} title={t('settings.providers.native.title')} hint={t('settings.providers.native.hint')}>
+          <div className={`settings-provider-row ${nativeProvider && !nativeProvider.health.ok ? 'is-down' : ''}`}>
             <div className="settings-provider-head">
-              <span className="settings-provider-name">{t('settings.providers.api.useLabel')}</span>
-              <UseControl id="api-key" activeSource={activeSource} eligible={apiKeyPresent} reason={t('settings.providers.api.useReason')} onUse={() => void useModelSource({ kind: 'api-key', model: apiModel }, t('settings.providers.api.title'))} t={t} busy={busy} />
+              <code className="settings-provider-id">{nativeProvider?.id ?? 'forgeax-core'}</code>
+              <span className="ok-pill">{t('settings.providers.native.badge')}</span>
+              {/* activeSource 'api-key' == the native path in the model-route model. */}
+              <UseControl id="api-key" activeSource={activeSource} eligible={nativeEligible} reason={t('settings.providers.native.useReason')} onUse={() => void useModelSource({ kind: 'api-key', model: apiModel }, t('settings.providers.native.title'))} t={t} busy={busy} />
+            </div>
+            {nativeProvider?.health.detail && <div className="settings-help" title={nativeProvider.health.detail}>{nativeProvider.health.detail}</div>}
+            {nativeCaps.length > 0 && (
+              <div className="settings-provider-caps">
+                {nativeCaps.map((c) => <span key={c} className="settings-cap-chip">{c}</span>)}
+              </div>
+            )}
+            <div className="settings-provider-test">
+              <button type="button" className="settings-edit-btn" onClick={() => { void reloadProviders(true); void testProvider('forgeax-core'); }} disabled={nativeTest?.status === 'running'}>
+                {nativeTest?.status === 'running' ? t('settings.cliProviders.testing') : 'Test'}
+              </button>
+              {nativeTest && nativeTest.status !== 'running' && (
+                <span className={`settings-test-result ${nativeTest.status === 'ok' ? 'is-ok' : 'is-err'}`}>
+                  {nativeTest.status === 'ok'
+                    ? nativeTest.ttftMs !== undefined
+                      ? `✓ ttft ${Math.round(nativeTest.ttftMs)}ms · total ${Math.round(nativeTest.totalMs ?? 0)}ms`
+                      : nativeTest.sawTool
+                        ? `✓ done · ${Math.round(nativeTest.totalMs ?? 0)}ms (tool-only turn)`
+                        : `✓ silent done · ${Math.round(nativeTest.totalMs ?? 0)}ms`
+                    : `✗ ${nativeTest.err?.slice(0, 80) ?? 'failed'}`}
+                </span>
+              )}
             </div>
           </div>
         </Section>
 
-        {/* ② Local CLI */}
+        {/* ② LiteLLM proxy — a BYO credential FEEDING the native kernel above.
+            The key/url are mirrored to ANTHROPIC_* on save (see onSave) because the
+            native forgeax-core kernel speaks the anthropic-messages protocol against
+            ANTHROPIC_BASE_URL + ANTHROPIC_API_KEY; a LiteLLM proxy answers that
+            protocol, so mirroring makes ONE config drive both the model catalog and
+            native inference. (No separate "set active" here — the native card owns
+            that toggle; this section is pure credential config.) */}
+        <Section icon={<Key size={14} />} title={t('settings.providers.api.title')} hint={t('settings.providers.api.hint')}>
+          <EnvField label="LITELLM_PROXY_BASE_URL" masked={envOf('LITELLM_PROXY_BASE_URL')} placeholder="https://your-litellm-host" onSave={(v) => void patchEnv({ LITELLM_PROXY_BASE_URL: v, ANTHROPIC_BASE_URL: v })} busy={busy} visible />
+          <EnvField label="LITELLM_PROXY_KEY" masked={envOf('LITELLM_PROXY_KEY')} placeholder="sk-..." onSave={(v) => void patchEnv({ LITELLM_PROXY_KEY: v, ANTHROPIC_API_KEY: v })} busy={busy} />
+        </Section>
+
+        {/* ③ Local CLI */}
         <Section icon={<Plug size={14} />} title={t('settings.providers.cli.title')} hint={t('settings.providers.cli.hint')}>
           {!providers && <div className="settings-help">{t('common.loading')}</div>}
           {providers && providers.length === 0 && <div className="settings-help">{t('settings.cliProviders.none')}</div>}
@@ -449,7 +503,7 @@ export function SettingsSectionsRegister() {
         </Section>
       </div>
     );
-  }, [data, busy, providers, providersCachedAt, tests, activeSource, t]);
+  }, [data, busy, providers, nativeProvider, providersCachedAt, tests, activeSource, t]);
 
   const modelsNode = useMemo(() => {
     if (!data) return <div className="settings-loading">{t('common.loading')}</div>;
