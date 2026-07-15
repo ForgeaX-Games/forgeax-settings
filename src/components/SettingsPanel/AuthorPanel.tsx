@@ -14,7 +14,6 @@ import { useEffect, useState } from 'react';
 import { Section } from '@forgeax/interface/components/SettingsPrimitives';
 import { GitFork, Mic, RefreshCw } from 'lucide-react';
 import { useTranslation } from '@forgeax/interface/i18n';
-import { pluginSourceDisplayPath } from '@forgeax/interface/lib/extension-api';
 
 interface ManifestRow {
   id: string;
@@ -26,10 +25,8 @@ interface ManifestRow {
 
 interface ManifestsResp { manifests: ManifestRow[] }
 
-type ForkSource = Parameters<typeof pluginSourceDisplayPath>[0];
-
 type ForkResult =
-  | { ok: true; id: string; layer: 'L1' | 'L2'; source: NonNullable<ForkSource> }
+  | { ok: true; id: string; dir: string; layer: 'L1' | 'L2' }
   | { ok: false; code: string; error: string };
 
 export function AuthorPanel(): React.ReactNode {
@@ -168,9 +165,7 @@ export function AuthorPanel(): React.ReactNode {
             {forkResult.ok ? (
               <div className="settings-info">
                 <span className="ok-pill">{t('author.fork.doneBadge')}</span>
-                <div style={{ marginTop: 4 }}>
-                  <code>{forkResult.id}</code> → <code>{pluginSourceDisplayPath(forkResult.source)}</code>
-                </div>
+                <div style={{ marginTop: 4 }}><code>{forkResult.id}</code> → <code>{forkResult.dir}</code></div>
                 <div className="settings-help">{t('author.fork.doneHelp')}</div>
               </div>
             ) : (
@@ -193,7 +188,7 @@ export function AuthorPanel(): React.ReactNode {
           {' '}<code>/author-plugin</code>{' '}{t('author.record.backendPost')}
         </div>
         <div className="settings-help" style={{ marginTop: 6 }}>
-          {t('author.record.draftPre')} <code>~/.forgeax/plugins/skill/&lt;slug&gt;/SKILL.md</code>{t('author.record.draftMid')} <code>09-NON-EXPERT-AUTHORING §2.3</code>{t('author.record.draftPost')}
+          {t('author.record.draftPre')} <code>~/.forgeax/plugins/skill-&lt;name&gt;/SKILL.md</code>{t('author.record.draftMid')} <code>09-NON-EXPERT-AUTHORING §2.3</code>{t('author.record.draftPost')}
         </div>
       </Section>
     </>
