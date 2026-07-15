@@ -2,8 +2,8 @@
  * Author panel — Fork + Record-as-skill entry (Phase D6 path 2/4).
  *
  * Backed by:
- *   POST /api/plugins/fork          — copy + manifest patch + reload
- *   POST /api/plugins/record-skill  — backend live; the chat-driven path is
+ *   POST /api/extensions/fork          — copy + manifest patch + reload
+ *   POST /api/extensions/record-skill  — backend live; the chat-driven path is
  *                                     `meta:author-plugin` (skill-author-plugin
  *                                     plugin); this panel currently exposes
  *                                     only the chat-flow handoff because the
@@ -42,7 +42,7 @@ export function AuthorPanel(): React.ReactNode {
 
   const loadManifests = async (): Promise<void> => {
     try {
-      const r = await fetch('/api/plugins/manifests');
+      const r = await fetch('/api/extensions/manifests');
       const j = (await r.json()) as ManifestsResp;
       setManifests(j.manifests ?? []);
     } catch {
@@ -64,7 +64,7 @@ export function AuthorPanel(): React.ReactNode {
     setForking(true);
     setForkResult(null);
     try {
-      const r = await fetch('/api/plugins/fork', {
+      const r = await fetch('/api/extensions/fork', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -183,12 +183,12 @@ export function AuthorPanel(): React.ReactNode {
 
       <Section icon={<Mic size={14} />} title={t('author.record.title')} hint={t('author.record.hint')}>
         <div className="settings-help" style={{ marginTop: 4 }}>
-          {t('author.record.backendPre')} <code>POST /api/plugins/record-skill</code> {t('author.record.backendMid')} (<code>recorded[]</code>) {t('author.record.backendMid2')}
+          {t('author.record.backendPre')} <code>POST /api/extensions/record-skill</code> {t('author.record.backendMid')} (<code>recorded[]</code>) {t('author.record.backendMid2')}
           {' '}<code>meta:author-plugin</code>{' '}{t('author.record.backendMid3')}
           {' '}<code>/author-plugin</code>{' '}{t('author.record.backendPost')}
         </div>
         <div className="settings-help" style={{ marginTop: 6 }}>
-          {t('author.record.draftPre')} <code>~/.forgeax/plugins/skill-&lt;name&gt;/SKILL.md</code>{t('author.record.draftMid')} <code>09-NON-EXPERT-AUTHORING §2.3</code>{t('author.record.draftPost')}
+          {t('author.record.draftPre')} <code>~/.forgeax/extensions/skill-&lt;name&gt;/SKILL.md</code>{t('author.record.draftMid')} <code>09-NON-EXPERT-AUTHORING §2.3</code>{t('author.record.draftPost')}
         </div>
       </Section>
     </>

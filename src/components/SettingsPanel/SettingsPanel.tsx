@@ -33,7 +33,7 @@ import { useTranslation } from '@forgeax/interface/i18n';
 import { useSettingsSections, type SettingsGroup, type SettingsSection } from './store';
 import './SettingsPanel.css';
 
-const GROUP_ORDER: SettingsGroup[] = ['config', 'plugin', 'system', 'account', 'about', 'other'];
+const GROUP_ORDER: SettingsGroup[] = ['config', 'extension', 'system', 'account', 'about', 'other'];
 
 export function SettingsPanel() {
   const { t } = useTranslation();

@@ -13,7 +13,7 @@
  *   priority    higher floats up in the nav; sections without explicit
  *               priority default to 50.
  *   group       optional sub-heading the nav can render between rows
- *               ('config' | 'system' | 'plugin' | 'account' …).
+ *               ('config' | 'system' | 'extension' | 'account' …).
  *   node        the actual section body — full React subtree.
  */
 
@@ -21,7 +21,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import type { LucideProps } from 'lucide-react';
 
-export type SettingsGroup = 'config' | 'system' | 'plugin' | 'account' | 'about' | 'other';
+export type SettingsGroup = 'config' | 'system' | 'extension' | 'account' | 'about' | 'other';
 
 export interface SettingsSection {
   id: string;
@@ -69,7 +69,7 @@ export const settingsSectionStore = {
  *     id: 'plugins',
  *     label: 'Plugins',
  *     priority: 70,
- *     group: 'plugin',
+ *     group: 'extension',
  *     node: <BusAdminPanel />,
  *   });
  */

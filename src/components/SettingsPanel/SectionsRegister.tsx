@@ -322,7 +322,7 @@ export function SettingsSectionsRegister() {
 
   // ── Section nodes (memoized so registry doesn't churn) ───────────────────
 
-  const pluginsNode = useMemo(() => (
+  const extensionsNode = useMemo(() => (
     <div className="sp-section-fill">
       <BusAdminPanel />
     </div>
@@ -650,10 +650,10 @@ export function SettingsSectionsRegister() {
   // ADR 0025 M4 — the section is the manifest-derived extension inventory
   // (BusAdminPanel reads /api/extensions/list); nav label follows the
   // unified Extension vocabulary.
-  useSettingsSection({ id: 'extensions',    label: t('settings.sections.extensions'), priority: 95, group: 'plugin',  icon: Network, node: pluginsNode });
-  useSettingsSection({ id: 'agents',        label: 'Agents',        priority: 94, group: 'plugin',  icon: Users, node: agentsNode });
-  useSettingsSection({ id: 'fxpack',        label: t('settings.sections.fxpackImport'),  priority: 92, group: 'plugin',  icon: ShieldCheck, node: <TrustPanel /> });
-  useSettingsSection({ id: 'author',        label: t('settings.sections.forkRecord'),   priority: 91, group: 'plugin',  icon: GitFork, node: <AuthorPanel /> });
+  useSettingsSection({ id: 'extensions',    label: t('settings.sections.extensions'), priority: 95, group: 'extension',  icon: Network, node: extensionsNode });
+  useSettingsSection({ id: 'agents',        label: 'Agents',        priority: 94, group: 'extension',  icon: Users, node: agentsNode });
+  useSettingsSection({ id: 'fxpack',        label: t('settings.sections.fxpackImport'),  priority: 92, group: 'extension',  icon: ShieldCheck, node: <TrustPanel /> });
+  useSettingsSection({ id: 'author',        label: t('settings.sections.forkRecord'),   priority: 91, group: 'extension',  icon: GitFork, node: <AuthorPanel /> });
   useSettingsSection({ id: 'providers',     label: 'Providers',     priority: 90, group: 'config',  icon: Plug,    node: providersNode });
   useSettingsSection({ id: 'models',        label: 'Models',        priority: 80, group: 'config',  icon: Cpu,     node: modelsNode });
   useSettingsSection({ id: 'model-lab',     label: 'Model Lab',     priority: 75, group: 'config',  icon: FlaskConical, node: modelLabNode });

@@ -169,7 +169,7 @@ export function TrustPanel(): React.ReactNode {
               {inspect.manifest.author && (
                 <div><span className="dim">author:</span> {inspect.manifest.author.name}</div>
               )}
-              <div><span className="dim">contains:</span> {inspect.manifest.contains.length} plugin(s)</div>
+              <div><span className="dim">contains:</span> {inspect.manifest.contains.length} extension(s)</div>
               <ul style={{ margin: '4px 0 0 18px' }}>
                 {inspect.manifest.contains.map((c) => (
                   <li key={c.id} style={{ fontSize: 12 }}>
