@@ -4,7 +4,7 @@
  * built-in sections into the settings-panel registry.
  *
  * Sections registered (in nav order):
- *   - Plugins      (group=plugin)    — BusAdminPanel (full bus inventory)
+ *   - Extensions   (group=plugin)    — BusAdminPanel (manifest-derived inventory)
  *   - API Keys     (group=config)    — LiteLLM proxy only (key + base URL)
  *   - Models       (group=config)    — FORGEAX_MODEL select
  *   - CLI Providers (group=config)   — health + 1-token Test
@@ -122,13 +122,16 @@ export function SettingsSectionsRegister() {
   };
   useEffect(() => { void reload(); void reloadProviders(); }, []);
 
-  // Legacy deep-links (api-keys / cli-providers) now resolve to the merged
-  // Providers section — redirect so old `openOverlay('settings', 'cli-providers')`
-  // call sites still land somewhere valid.
+  // Legacy deep-links now resolve to renamed sections — redirect so old
+  // call sites still land somewhere valid:
+  //   api-keys / cli-providers → the merged Providers section;
+  //   plugins → extensions (ADR 0025 M4 vocabulary; deep-link strings live
+  //   in chat/dashboard/interface and migrate opportunistically).
   const overlayParam = useShellStore((s) => s.overlayParam);
   const setOverlayParam = useShellStore((s) => s.setOverlayParam);
   useEffect(() => {
     if (overlayParam === 'api-keys' || overlayParam === 'cli-providers') setOverlayParam('providers');
+    if (overlayParam === 'plugins') setOverlayParam('extensions');
   }, [overlayParam, setOverlayParam]);
 
   const flash = (kind: 'ok' | 'err', text: string) => {
@@ -644,7 +647,10 @@ export function SettingsSectionsRegister() {
 
   // ── Register sections ────────────────────────────────────────────────────
 
-  useSettingsSection({ id: 'plugins',       label: 'Plugins',       priority: 95, group: 'plugin',  icon: Network, node: pluginsNode });
+  // ADR 0025 M4 — the section is the manifest-derived extension inventory
+  // (BusAdminPanel reads /api/extensions/list); nav label follows the
+  // unified Extension vocabulary.
+  useSettingsSection({ id: 'extensions',    label: t('settings.sections.extensions'), priority: 95, group: 'plugin',  icon: Network, node: pluginsNode });
   useSettingsSection({ id: 'agents',        label: 'Agents',        priority: 94, group: 'plugin',  icon: Users, node: agentsNode });
   useSettingsSection({ id: 'fxpack',        label: t('settings.sections.fxpackImport'),  priority: 92, group: 'plugin',  icon: ShieldCheck, node: <TrustPanel /> });
   useSettingsSection({ id: 'author',        label: t('settings.sections.forkRecord'),   priority: 91, group: 'plugin',  icon: GitFork, node: <AuthorPanel /> });
