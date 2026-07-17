@@ -612,6 +612,7 @@ export function SettingsSectionsRegister() {
           label="FORGEAX_UPLOAD_GITHUB_TOKEN"
           masked={envOf('FORGEAX_UPLOAD_GITHUB_TOKEN')}
           placeholder="粘贴 GitHub token(经典或 fine-grained,共享或个人)"
+          notSetHint="已内置共享 token · 粘贴自己的 token 可覆盖"
           onSave={(v) => void patchEnv({ FORGEAX_UPLOAD_GITHUB_TOKEN: v })}
           busy={busy}
         />
