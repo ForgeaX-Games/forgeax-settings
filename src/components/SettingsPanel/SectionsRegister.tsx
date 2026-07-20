@@ -607,13 +607,14 @@ export function SettingsSectionsRegister() {
   const uploadNode = useMemo(() => {
     if (!data) return <div className="settings-loading">{t('common.loading')}</div>;
     return (
-      <Section icon={<UploadCloud size={14} />} title="Upload" hint="把当前 workspace 的 .forgeax 创作内容上传到 GitHub 仓(聊天里的 /upload 命令等效)。">
+      <Section icon={<UploadCloud size={14} />} title={t('settings.upload.title')} hint={t('settings.upload.hint')}>
         <EnvField
           label="FORGEAX_UPLOAD_GITHUB_TOKEN"
           masked={envOf('FORGEAX_UPLOAD_GITHUB_TOKEN')}
-          placeholder="粘贴 GitHub token(经典或 fine-grained,共享或个人)"
-          notSetHint="已内置共享 token · 粘贴自己的 token 可覆盖"
+          placeholder={t('settings.upload.tokenPlaceholder')}
+          notSetHint={t('settings.upload.tokenNotSetHint')}
           onSave={(v) => void patchEnv({ FORGEAX_UPLOAD_GITHUB_TOKEN: v })}
+          onReset={() => void patchEnv({ FORGEAX_UPLOAD_GITHUB_TOKEN: '' })}
           busy={busy}
         />
         <EnvField
@@ -633,12 +634,12 @@ export function SettingsSectionsRegister() {
           visible
         />
         <div className="settings-help">
-          默认传到共享仓;也可以改成任何你的 token 有写权限的仓(如自己账号下的仓)。分支默认 main。
+          {t('settings.upload.repoHelp')}
         </div>
         <UploadPanel tokenSet={!!envOf('FORGEAX_UPLOAD_GITHUB_TOKEN')} />
       </Section>
     );
-  }, [data, busy]);
+  }, [data, busy, t]);
 
   const agentsNode = useMemo(() => (
     <Section icon={<Users size={14} />} title="Agents" hint={t('settings.agents.hint')}>
@@ -659,7 +660,7 @@ export function SettingsSectionsRegister() {
   useSettingsSection({ id: 'models',        label: 'Models',        priority: 80, group: 'config',  icon: Cpu,     node: modelsNode });
   useSettingsSection({ id: 'model-lab',     label: 'Model Lab',     priority: 75, group: 'config',  icon: FlaskConical, node: modelLabNode });
   useSettingsSection({ id: 'usage',         label: t('settings.usage.title'),          priority: 67, group: 'config',  icon: Activity, node: usageNode });
-  useSettingsSection({ id: 'upload',        label: 'Upload',        priority: 66.5, group: 'config',  icon: UploadCloud, node: uploadNode });
+  useSettingsSection({ id: 'upload',        label: t('settings.sections.upload'), priority: 66.5, group: 'config',  icon: UploadCloud, node: uploadNode });
   useSettingsSection({ id: 'language',      label: 'Language',      priority: 66, group: 'system',  icon: Globe,   node: <LanguageSection /> });
   useSettingsSection({ id: 'boot-splash',   label: 'Boot Splash',   priority: 65, group: 'system',  icon: Sparkles, node: <BootSplashSection /> });
   useSettingsSection({ id: 'memory',        label: '记忆 Memory',   priority: 64, group: 'system',  icon: Brain,   node: <MemorySettingsSection /> });
