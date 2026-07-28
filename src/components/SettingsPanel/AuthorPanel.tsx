@@ -14,19 +14,24 @@ import { useEffect, useState } from 'react';
 import { Section } from '@forgeax/interface/components/SettingsPrimitives';
 import { GitFork, Mic, RefreshCw } from 'lucide-react';
 import { useTranslation } from '@forgeax/interface/i18n';
+import {
+  extensionOriginLabel,
+  type ExtensionOrigin,
+  type WritableExtensionOrigin,
+} from '../../extension-origin';
 
 interface ManifestRow {
   id: string;
   version: string;
   kind: string;
-  layer: 'L0' | 'L1' | 'L2';
+  origin: ExtensionOrigin;
   displayName?: string | { en?: string; zh?: string };
 }
 
 interface ManifestsResp { manifests: ManifestRow[] }
 
 type ForkResult =
-  | { ok: true; id: string; dir: string; layer: 'L1' | 'L2' }
+  | { ok: true; id: string; dir: string; origin: WritableExtensionOrigin }
   | { ok: false; code: string; error: string };
 
 export function AuthorPanel(): React.ReactNode {
@@ -34,7 +39,7 @@ export function AuthorPanel(): React.ReactNode {
   const [manifests, setManifests] = useState<ManifestRow[] | null>(null);
   const [srcId, setSrcId] = useState('');
   const [newId, setNewId] = useState('');
-  const [destLayer, setDestLayer] = useState<'L1' | 'L2'>('L1');
+  const [destinationOrigin, setDestinationOrigin] = useState<WritableExtensionOrigin>('user');
   const [projectRoot, setProjectRoot] = useState('');
   const [forking, setForking] = useState(false);
   const [forkResult, setForkResult] = useState<ForkResult | null>(null);
@@ -70,8 +75,8 @@ export function AuthorPanel(): React.ReactNode {
         body: JSON.stringify({
           srcId,
           newId: newId || undefined,
-          destLayer,
-          projectRoot: destLayer === 'L2' ? (projectRoot || undefined) : undefined,
+          destinationOrigin,
+          projectRoot: destinationOrigin === 'project' ? (projectRoot || undefined) : undefined,
         }),
       });
       const j = (await r.json()) as ForkResult;
@@ -100,7 +105,7 @@ export function AuthorPanel(): React.ReactNode {
             <option value="">{t('author.fork.selectPlaceholder')}</option>
             {forkable.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.id} (v{m.version} · {m.layer} · {m.kind})
+                {m.id} (v{m.version} · {extensionOriginLabel(m.origin)} · {m.kind})
               </option>
             ))}
           </select>
@@ -115,17 +120,17 @@ export function AuthorPanel(): React.ReactNode {
             style={inputStyle}
           />
 
-          <label className="settings-label">{t('author.fork.destLayerLabel')}</label>
+          <label className="settings-label">{t('author.fork.destinationOriginLabel')}</label>
           <div style={{ display: 'flex', gap: 12 }}>
-            {(['L1', 'L2'] as const).map((l) => (
-              <label key={l} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <input type="radio" name="fork-layer" checked={destLayer === l} onChange={() => setDestLayer(l)} />
-                {l === 'L1' ? t('author.fork.layerL1') : t('author.fork.layerL2')}
+            {(['user', 'project'] as const).map((origin) => (
+              <label key={origin} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <input type="radio" name="fork-origin" checked={destinationOrigin === origin} onChange={() => setDestinationOrigin(origin)} />
+                {origin === 'user' ? t('author.fork.originUser') : t('author.fork.originProject')}
               </label>
             ))}
           </div>
 
-          {destLayer === 'L2' && (
+          {destinationOrigin === 'project' && (
             <>
               <label className="settings-label">project root</label>
               <input
@@ -145,7 +150,7 @@ export function AuthorPanel(): React.ReactNode {
             type="button"
             className="settings-edit-btn"
             onClick={() => void doFork()}
-            disabled={forking || !srcId || (destLayer === 'L2' && !projectRoot)}
+            disabled={forking || !srcId || (destinationOrigin === 'project' && !projectRoot)}
           >
             {forking ? t('author.fork.copying') : 'Fork'}
           </button>

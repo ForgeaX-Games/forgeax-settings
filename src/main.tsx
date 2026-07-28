@@ -1,8 +1,8 @@
 // Standalone settings app entry — OWNS its own boot, mirroring
 // packages/editor/standalone/main.tsx. interface is consumed purely as a parts
-// library; the IDE product shell (<App>) is studio's (L3) concern and is NOT
+// library; the IDE product shell (<App>) belongs to Studio product assembly and is NOT
 // rendered here. Mounts BOTH the sections-register side-effect and the panel,
-// like studio, full-viewport over the booted L1 store.
+// like studio, full-viewport over the booted interface store.
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@forgeax/interface/styles/global.css';

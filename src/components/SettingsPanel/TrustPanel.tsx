@@ -9,7 +9,7 @@
  *   - signed?    — unsigned packs require an explicit `我了解` checkbox before
  *                  the install button enables (per ADR-0014 default-deny).
  *   - permissions[] per plugin — the receiver MUST see what the pack will do.
- *   - conflicts[]              — id already exists at L1/L2; user picks a
+ *   - conflicts[]              — id already exists at a known extension origin; user picks a
  *                                conflictPolicy (skip default).
  *   - warnings[]               — soft warnings ("未签名 · 请确认来源", etc.).
  *
@@ -20,6 +20,11 @@ import { useState } from 'react';
 import { Section } from '@forgeax/interface/components/SettingsPrimitives';
 import { Download, ShieldAlert, ShieldCheck, AlertTriangle, FileWarning } from 'lucide-react';
 import { useTranslation } from '@forgeax/interface/i18n';
+import {
+  extensionOriginLabel,
+  type ExtensionOrigin,
+  type WritableExtensionOrigin,
+} from '../../extension-origin';
 
 interface TrustDescriptor {
   signed: boolean;
@@ -27,7 +32,7 @@ interface TrustDescriptor {
   permissions: Record<string, string[]>;
   conflicts: Array<{
     id: string;
-    existingLayer: 'L0' | 'L1' | 'L2';
+    existingOrigin: ExtensionOrigin;
     existingVersion: string;
     newVersion: string;
   }>;
@@ -64,7 +69,7 @@ export function TrustPanel(): React.ReactNode {
   const [inspect, setInspect] = useState<InspectResult | null>(null);
 
   const [destRoot, setDestRoot] = useState('');
-  const [destLayer, setDestLayer] = useState<'L1' | 'L2'>('L2');
+  const [destinationOrigin, setDestinationOrigin] = useState<WritableExtensionOrigin>('project');
   const [policy, setPolicy] = useState<ConflictPolicy>('skip');
   const [unsignedAck, setUnsignedAck] = useState(false);
   const [installing, setInstalling] = useState(false);
@@ -102,7 +107,7 @@ export function TrustPanel(): React.ReactNode {
         body: JSON.stringify({
           path: path.trim(),
           destRoot: destRoot.trim(),
-          destLayer,
+          destinationOrigin,
           conflictPolicy: policy,
           reload: true,
         }),
@@ -216,7 +221,7 @@ export function TrustPanel(): React.ReactNode {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {inspect.trust.conflicts.map((c) => (
                   <div key={c.id} className="settings-info">
-                    <code>{c.id}</code> · {t('trust.conflicts.entry', { layer: c.existingLayer, oldVersion: c.existingVersion, newVersion: c.newVersion })}
+                    <code>{c.id}</code> · {t('trust.conflicts.entry', { origin: extensionOriginLabel(c.existingOrigin), oldVersion: c.existingVersion, newVersion: c.newVersion })}
                   </div>
                 ))}
               </div>
@@ -246,18 +251,18 @@ export function TrustPanel(): React.ReactNode {
               <label className="settings-label">destRoot</label>
               <input
                 type="text"
-                placeholder={destLayer === 'L1' ? t('trust.install.destRootL1Placeholder') : t('trust.install.destRootL2Placeholder')}
+                placeholder={destinationOrigin === 'user' ? t('trust.install.userRootPlaceholder') : t('trust.install.projectRootPlaceholder')}
                 value={destRoot}
                 onChange={(e) => setDestRoot(e.target.value)}
                 disabled={installing}
                 style={inputStyle}
               />
-              <label className="settings-label">layer</label>
+              <label className="settings-label">origin</label>
               <div style={{ display: 'flex', gap: 12 }}>
-                {(['L1', 'L2'] as const).map((l) => (
-                  <label key={l} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <input type="radio" name="dest-layer" checked={destLayer === l} onChange={() => setDestLayer(l)} />
-                    {l === 'L1' ? t('trust.install.layerL1') : t('trust.install.layerL2')}
+                {(['user', 'project'] as const).map((origin) => (
+                  <label key={origin} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <input type="radio" name="destination-origin" checked={destinationOrigin === origin} onChange={() => setDestinationOrigin(origin)} />
+                    {origin === 'user' ? t('trust.install.originUser') : t('trust.install.originProject')}
                   </label>
                 ))}
               </div>

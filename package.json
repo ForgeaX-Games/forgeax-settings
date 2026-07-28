@@ -4,7 +4,7 @@
   "private": false,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "forgeax settings L2 app — unified settings overlay, sections registry, env/keys, plugins, and changelog.",
+  "description": "ForgeaX standalone settings application — unified settings overlay, sections registry, env/keys, extensions, and changelog.",
   "repository": {
     "type": "git",
     "url": "https://github.com/ForgeaX-Games/forgeax-studio.git",
@@ -19,6 +19,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "bun test src/architecture-language.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

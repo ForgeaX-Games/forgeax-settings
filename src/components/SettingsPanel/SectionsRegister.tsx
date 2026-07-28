@@ -663,7 +663,7 @@ export function SettingsSectionsRegister() {
   useSettingsSection({ id: 'upload',        label: t('settings.sections.upload'), priority: 66.5, group: 'config',  icon: UploadCloud, node: uploadNode });
   useSettingsSection({ id: 'language',      label: 'Language',      priority: 66, group: 'system',  icon: Globe,   node: <LanguageSection /> });
   useSettingsSection({ id: 'boot-splash',   label: 'Boot Splash',   priority: 65, group: 'system',  icon: Sparkles, node: <BootSplashSection /> });
-  useSettingsSection({ id: 'memory',        label: '记忆 Memory',   priority: 64, group: 'system',  icon: Brain,   node: <MemorySettingsSection /> });
+  useSettingsSection({ id: 'memory',        label: t('settings.memory.label'), priority: 64, group: 'system', icon: Brain, node: <MemorySettingsSection /> });
   useSettingsSection({ id: 'shortcuts',     label: 'Shortcuts',     priority: 62, group: 'system',  icon: Command, node: shortcutsNode });
   useSettingsSection({ id: 'workspace',     label: 'Workspace',     priority: 60, group: 'system',  icon: Trash2,  node: workspaceNode });
   useSettingsSection({ id: 'account',       label: 'Account',       priority: 50, group: 'account', icon: User,    node: accountNode });
@@ -783,7 +783,7 @@ function AgentsBody() {
   const { t, i18n } = useTranslation();
   const [agents, setAgents] = useState<WorkbenchAgent[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  // ① 走 settings 自己的 agent-prefs 模块（bus 'prefs:agents'），L1 store 不再持有。
+  // ① 走 settings 自己的 agent-prefs 模块（bus 'prefs:agents'），interface store 不再持有。
   const { uninstalledAgentIds: uninstalledIds, defaultBootstrapAgent: defaultBootstrap } = useAgentPrefs();
   const toggle = toggleAgentInstalled;
   const setDefaultBootstrap = setDefaultBootstrapAgent;
