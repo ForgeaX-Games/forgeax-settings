@@ -374,7 +374,7 @@ export function SettingsSectionsRegister() {
     // "Use LiteLLM" is eligible only when BOTH the proxy key and base URL are
     // persisted in .env. Reads from /api/settings (the install-global .env, see
     // envFilePath in cli/api/settings.ts), so the button state survives a
-    // refresh and a workspace switch — it's no longer tied to transient page
+    // refresh and a game switch — it's no longer tied to transient page
     // state that vanished on reload.
     const litellmKeyPresent = (envOf('LITELLM_PROXY_KEY') ?? '').length > 0;
     const litellmUrlPresent = (envOf('LITELLM_PROXY_BASE_URL') ?? '').length > 0;
@@ -665,7 +665,7 @@ export function SettingsSectionsRegister() {
   useSettingsSection({ id: 'boot-splash',   label: 'Boot Splash',   priority: 65, group: 'system',  icon: Sparkles, node: <BootSplashSection /> });
   useSettingsSection({ id: 'memory',        label: t('settings.memory.label'), priority: 64, group: 'system', icon: Brain, node: <MemorySettingsSection /> });
   useSettingsSection({ id: 'shortcuts',     label: 'Shortcuts',     priority: 62, group: 'system',  icon: Command, node: shortcutsNode });
-  useSettingsSection({ id: 'workspace',     label: 'Workspace',     priority: 60, group: 'system',  icon: Trash2,  node: workspaceNode });
+  useSettingsSection({ id: 'workspace',     label: 'Game & runtime', priority: 60, group: 'system', icon: Trash2, node: workspaceNode });
   useSettingsSection({ id: 'account',       label: 'Account',       priority: 50, group: 'account', icon: User,    node: accountNode });
   useSettingsSection({ id: 'changelog',     label: 'Changelog',     priority: 45, group: 'about',   icon: History, node: changelogNode });
   useSettingsSection({ id: 'about',         label: 'About',         priority: 40, group: 'about',   icon: Info,    node: aboutNode });

@@ -45,7 +45,7 @@ function boot(): void {
 
   installHealthBridge();
   initAgentPrefs(); // ① agent 安装偏好 owner —— 发首帧 bus 快照 + 挂 seed 监听
-  bootBroadcast(); // R5/P1 唯一公共广播 socket（telemetry / workspace-changed）
+  bootBroadcast(); // R5/P1 唯一公共广播 socket（telemetry）
   subscribeNarrativeCopilot();
   subscribeFileActivityStream();
   subscribePermissionStream();
