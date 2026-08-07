@@ -31,7 +31,6 @@ import { LanguageSection } from '@forgeax/interface/i18n/LanguageSettingsSection
 import { ModelPicker } from '@forgeax/interface/components/ModelPicker';
 import { TrustPanel } from './TrustPanel';
 import { AuthorPanel } from './AuthorPanel';
-import { CapabilityManagementPanel, KernelCapabilitySummary } from './CapabilityManagementPanel';
 import { useShellStore } from '@forgeax/interface/store';
 import { useAgentPrefs, toggleAgentInstalled, setDefaultBootstrapAgent, requestAgentSeed } from '../../agent-prefs';
 import { AgentAvatarVideo } from '@forgeax/ai-workbench/components/AgentAvatarVideo/AgentAvatarVideo';
@@ -300,9 +299,9 @@ export function SettingsSectionsRegister() {
         flash('err', j?.error ?? `HTTP ${r.status}${r.statusText ? ` ${r.statusText}` : ''}`);
         return;
       }
-      // Reconcile from the server response; no page-local game binding exists.
+      // Reconcile the shell with the server-selected surviving game.
       try {
-        await useShellStore.getState().applyActiveGame({ activeSlug: j.activeSlug ?? null });
+        await useShellStore.getState().applyActiveGame(j.activeSlug ?? null);
       } catch (e) {
         console.warn('[resetGames] active-game reconciliation failed', e);
       }
@@ -324,8 +323,6 @@ export function SettingsSectionsRegister() {
       <BusAdminPanel />
     </div>
   ), []);
-
-  const capabilitiesNode = useMemo(() => <CapabilityManagementPanel />, []);
 
   // Consolidated "Providers" — API Key + local CLI, each with a
   // "set as active" control that derives from (providerOverride, FORGEAX_MODEL).
@@ -416,7 +413,6 @@ export function SettingsSectionsRegister() {
                 {nativeCaps.map((c) => <span key={c} className="settings-cap-chip">{c}</span>)}
               </div>
             )}
-            <KernelCapabilitySummary kernelId="forgeax-core" />
             <div className="settings-provider-test">
               <button type="button" className="settings-edit-btn" onClick={() => { void reloadProviders(true); void testProvider('forgeax-core'); }} disabled={nativeTest?.status === 'running'}>
                 {nativeTest?.status === 'running' ? t('settings.cliProviders.testing') : 'Test'}
@@ -469,7 +465,6 @@ export function SettingsSectionsRegister() {
                 <div className="settings-provider-caps">
                   {caps.map((c) => <span key={c} className="settings-cap-chip">{c}</span>)}
                 </div>
-                <KernelCapabilitySummary kernelId={p.id} />
                 <div className="settings-provider-test">
                   {/* Test stays clickable even when health reports "unavailable":
                       the health probe is a coarse `--version` check that can lag or
@@ -654,7 +649,6 @@ export function SettingsSectionsRegister() {
   // (BusAdminPanel reads /api/extensions/list); nav label follows the
   // unified Extension vocabulary.
   useSettingsSection({ id: 'extensions',    label: t('settings.sections.extensions'), priority: 95, group: 'extension',  icon: Network, node: extensionsNode });
-  useSettingsSection({ id: 'capabilities',  label: 'Capabilities', priority: 94.5, group: 'extension', icon: Network, node: capabilitiesNode });
   useSettingsSection({ id: 'agents',        label: 'Agents',        priority: 94, group: 'extension',  icon: Users, node: agentsNode });
   useSettingsSection({ id: 'fxpack',        label: t('settings.sections.fxpackImport'),  priority: 92, group: 'extension',  icon: ShieldCheck, node: <TrustPanel /> });
   useSettingsSection({ id: 'author',        label: t('settings.sections.forkRecord'),   priority: 91, group: 'extension',  icon: GitFork, node: <AuthorPanel /> });
