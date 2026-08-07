@@ -302,7 +302,7 @@ export function SettingsSectionsRegister() {
       }
       // Reconcile from the server response; no page-local game binding exists.
       try {
-        await useShellStore.getState().applyActiveGame(j.activeSlug ?? null);
+        await useShellStore.getState().applyActiveGame({ activeSlug: j.activeSlug ?? null });
       } catch (e) {
         console.warn('[resetGames] active-game reconciliation failed', e);
       }

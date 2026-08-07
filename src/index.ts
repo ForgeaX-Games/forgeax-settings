@@ -10,6 +10,11 @@
 // imports this package.
 export { SettingsPanel } from './components/SettingsPanel/SettingsPanel';
 export { SettingsSectionsRegister } from './components/SettingsPanel/SectionsRegister';
+// Registry hook — the documented way for ANY feature to drop a section into
+// the overlay without editing SettingsPanel.tsx (aggregation layers like
+// studio's editorRenderers use it to project their own sections in).
+export { useSettingsSection } from './components/SettingsPanel/store';
+export type { SettingsSection, SettingsGroup } from './components/SettingsPanel/store';
 // ① agent 安装偏好（R5）—— owner 在 settings，走 bus 'prefs:agents'。boot 时由聚合方调 initAgentPrefs()。
 export {
   initAgentPrefs,
