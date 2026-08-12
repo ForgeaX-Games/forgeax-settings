@@ -27,6 +27,7 @@ import { BusAdminPanel } from '@forgeax/interface/components/Bus/BusAdminPanel';
 import { useSettingsSection } from './store';
 import { BootSplashSection } from '@forgeax/interface/boot/SettingsSection';
 import { MemorySettingsSection } from './MemorySettingsSection';
+import { KernelPermissionSelect } from './KernelPermissionSelect';
 import { LanguageSection } from '@forgeax/interface/i18n/LanguageSettingsSection';
 import { ModelPicker } from '@forgeax/interface/components/ModelPicker';
 import { TrustPanel } from './TrustPanel';
@@ -409,6 +410,7 @@ export function SettingsSectionsRegister() {
               <span className="ok-pill">{t('settings.providers.native.badge')}</span>
               {/* activeSource 'api-key' == the native path in the model-route model. */}
               <UseControl id="api-key" activeSource={activeSource} eligible={nativeEligible} reason={t('settings.providers.native.useReason')} onUse={() => void useModelSource({ kind: 'api-key', model: apiModel }, t('settings.providers.native.title'))} t={t} busy={busy} />
+              <KernelPermissionSelect kernelId={nativeProvider?.id ?? 'forgeax-core'} />
             </div>
             {nativeProvider?.health.detail && <div className="settings-help" title={nativeProvider.health.detail}>{nativeProvider.health.detail}</div>}
             {nativeCaps.length > 0 && (
@@ -464,6 +466,7 @@ export function SettingsSectionsRegister() {
                     {p.health.ok ? t('settings.providers.cli.healthy') : t('settings.providers.cli.unavailable')}
                   </span>
                   <UseControl id={p.id} activeSource={activeSource} eligible={p.health.ok} reason={t('settings.providers.cli.useReason')} onUse={() => void useModelSource({ kind: 'cli', providerId: p.id }, p.displayName)} t={t} busy={busy} />
+                  <KernelPermissionSelect kernelId={p.id} />
                 </div>
                 {p.health.detail && <div className="settings-help" title={p.health.detail}>{p.health.detail}</div>}
                 <div className="settings-provider-caps">
