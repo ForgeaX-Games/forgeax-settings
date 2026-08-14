@@ -166,3 +166,12 @@
   white-space: nowrap;
 }
 .use-btn { margin-left: auto; }
+
+.dsh-credential-settings { margin-top: 12px; padding: 12px; border: 1px solid var(--color-border-default); border-radius: 6px; }
+.dsh-credential-status { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.dsh-credential-status[data-state="missing"] { color: var(--text-dim); }
+.dsh-credential-status[data-state="configured"] { color: var(--primary, #d4ff48); }
+.dsh-credential-status[data-state="error"], .dsh-credential-error { color: var(--color-danger, #ff7272); }
+.dsh-credential-settings .settings-label { display: block; margin-top: 8px; }
+.dsh-credential-settings .settings-input { width: 100%; box-sizing: border-box; }
+.dsh-credential-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }

@@ -48,6 +48,7 @@ import {
 } from '@forgeax/interface/lib/model-route';
 import { pickLang } from '@forgeax/interface/lib/extension-api';
 import { getLocale } from '@forgeax/interface/i18n';
+import { DshCredentialSettings } from './DshCredentialSettings';
 
 // ── shared state types (kept in sync with /api/settings) ─────────────────
 
@@ -158,7 +159,7 @@ export function SettingsSectionsRegister() {
     'DEEPSEEK_BASE_URL',
   ]);
 
-  const patchEnv = async (patch: Record<string, string>) => {
+  const patchEnv = async (patch: Record<string, string>): Promise<boolean> => {
     setBusy(true);
     try {
       const r = await fetch('/api/settings/env', {
@@ -167,7 +168,7 @@ export function SettingsSectionsRegister() {
         body: JSON.stringify(patch),
       });
       const j = (await r.json()) as { ok?: boolean; error?: string; touched?: number };
-      if (!r.ok || !j.ok) flash('err', j.error ?? `HTTP ${r.status}`);
+      if (!r.ok || !j.ok) { flash('err', j.error ?? `HTTP ${r.status}`); return false; }
       else {
         flash('ok', t('settings.env.saved', { count: j.touched ?? 0 }));
         await reload();
@@ -180,8 +181,10 @@ export function SettingsSectionsRegister() {
           } catch { /* 模型刷新失败不影响凭据已保存 */ }
         }
       }
+      return true;
     } catch (e) {
       flash('err', (e as Error).message);
+      return false;
     } finally { setBusy(false); }
   };
 
@@ -450,7 +453,19 @@ export function SettingsSectionsRegister() {
           <EnvField label="LITELLM_PROXY_KEY" masked={envOf('LITELLM_PROXY_KEY')} placeholder="sk-..." onSave={(v) => void patchEnv({ LITELLM_PROXY_KEY: v, ANTHROPIC_API_KEY: v })} busy={busy} />
         </Section>
 
-        {/* ③ Local CLI */}
+        {/* ③ DeepSeek Harness credentials — always visible, even when the local
+            binary is not installed or its health probe fails. Credentials and
+            executable health are independent setup concerns. */}
+        <Section icon={<Key size={14} />} title={t('settings.providers.dsh.title')} hint={t('settings.providers.dsh.hint')}>
+          <DshCredentialSettings
+            apiKey={envOf('DEEPSEEK_API_KEY')}
+            baseUrl={envOf('DEEPSEEK_BASE_URL')}
+            busy={busy}
+            onSave={patchEnv}
+          />
+        </Section>
+
+        {/* ④ Local CLI */}
         <Section icon={<Plug size={14} />} title={t('settings.providers.cli.title')} hint={t('settings.providers.cli.hint')}>
           {!providers && <div className="settings-help">{t('common.loading')}</div>}
           {providers && providers.length === 0 && <div className="settings-help">{t('settings.cliProviders.none')}</div>}
@@ -482,7 +497,7 @@ export function SettingsSectionsRegister() {
                   <button type="button" className="settings-edit-btn" onClick={() => { void reloadProviders(true); void testProvider(p.id); }} disabled={tr?.status === 'running'}>
                     {tr?.status === 'running' ? t('settings.cliProviders.testing') : 'Test'}
                   </button>
-                  {tr && tr.status !== 'running' && (
+                {tr && tr.status !== 'running' && (
                     <span className={`settings-test-result ${tr.status === 'ok' ? 'is-ok' : 'is-err'}`}>
                       {tr.status === 'ok'
                         ? tr.ttftMs !== undefined
@@ -492,8 +507,8 @@ export function SettingsSectionsRegister() {
                             : `✓ silent done · ${Math.round(tr.totalMs ?? 0)}ms`
                         : `✗ ${tr.err?.slice(0, 80) ?? 'failed'}`}
                     </span>
-                  )}
-                </div>
+                )}
+              </div>
               </div>
             );
           })}
