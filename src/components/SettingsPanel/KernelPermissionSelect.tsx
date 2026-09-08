@@ -15,6 +15,7 @@
  *     这里用模块级缓存 + 订阅,N 行共用一次 GET,写入后广播给所有行。
  */
 import { useEffect, useState, type ReactNode } from 'react';
+import { FxSelect } from './shared/FxSelect';
 import { useTranslation, type TFunction } from '@forgeax/interface/i18n';
 
 type PermissionMode = 'gated' | 'autoEdits' | 'planning' | 'unrestricted';
@@ -169,21 +170,29 @@ export function KernelPermissionSelect({ kernelId }: { kernelId: string }): Reac
     void save(next).catch(() => setSaveError(true));
   };
 
+  const options = [
+    {
+      value: FOLLOW_DEFAULT,
+      label: t('settings.kernelPermissions.followDefault', { mode: label(cap.defaultMode) }),
+    },
+    ...cap.supported.map((m) => ({
+      value: m,
+      label: label(m),
+    })),
+  ];
+
   return (
     <>
-      <select
-        className="settings-select settings-perm-select"
-        aria-label={t('settings.kernelPermissions.title')}
-        aria-invalid={saveError || undefined}
-        title={tooltip(cap, effective, snap.defaultMode, t)}
+      <FxSelect
+        className="settings-perm-select"
+        size="mini"
         value={configured ?? FOLLOW_DEFAULT}
-        onChange={(e) => pick(e.target.value)}
-      >
-        <option value={FOLLOW_DEFAULT}>{t('settings.kernelPermissions.followDefault', { mode: label(cap.defaultMode) })}</option>
-        {cap.supported.map((m) => (
-          <option key={m} value={m}>{label(m)}</option>
-        ))}
-      </select>
+        options={options}
+        onChange={pick}
+        aria-label={t('settings.kernelPermissions.title')}
+        title={tooltip(cap, effective, snap.defaultMode, t)}
+        invalid={saveError}
+      />
       {saveError && <span className="settings-test-result is-err" role="alert">{t('common.error')}</span>}
     </>
   );

@@ -52,7 +52,6 @@ export default defineConfig({
       '@forgeax/design/tokens.css': resolve(INTERFACE_DIR, 'packages/design/tokens.css'),
       '@forgeax/design': resolve(INTERFACE_DIR, 'packages/design/index.ts'),
       '@forgeax/types': sib('contracts/types/src/index.ts'),
-      '@forgeax/host-sdk': sib('host-sdk/src/index.ts'),
     },
   },
   optimizeDeps: { exclude: ['@forgeax/engine-runtime'] },

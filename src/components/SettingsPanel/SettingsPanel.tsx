@@ -33,7 +33,7 @@ import { useTranslation } from '@forgeax/interface/i18n';
 import { useSettingsSections, type SettingsGroup, type SettingsSection } from './store';
 import './SettingsPanel.css';
 
-const GROUP_ORDER: SettingsGroup[] = ['config', 'extension', 'system', 'account', 'about', 'other'];
+const GROUP_ORDER: SettingsGroup[] = ['ai', 'system', 'about', 'other'];
 
 export function SettingsPanel() {
   const { t } = useTranslation();
@@ -76,13 +76,10 @@ export function SettingsPanel() {
         <DialogPrimitive.Overlay className="settings-panel-overlay" />
         <DialogPrimitive.Content
           className="settings-panel-shell settings-panel-shell--dialog"
-          aria-label="Settings"
+          aria-label={t('settings.title')}
         >
           <header className="sp-header">
             <DialogPrimitive.Title className="sp-title">{t('settings.title')}</DialogPrimitive.Title>
-            <DialogPrimitive.Description className="sp-subtitle">
-              {t('settings.subtitle')}
-            </DialogPrimitive.Description>
             <DialogPrimitive.Close asChild>
               <button
                 type="button"
@@ -96,7 +93,7 @@ export function SettingsPanel() {
           </header>
 
           <div className="sp-body">
-          <nav className="sp-nav" aria-label="settings sections">
+          <nav className="sp-nav" aria-label={t('settings.navAria')}>
             {grouped.map(({ group, items }) => (
               <div key={group} className="sp-nav-group">
                 <div className="sp-nav-group-label">{t(`settings.groups.${group}`)}</div>
@@ -123,7 +120,7 @@ export function SettingsPanel() {
             )}
           </nav>
 
-          <section className="sp-content thin-scrollbar">
+          <section className="sp-content thin-scrollbar" id={active?.id}>
             {active ? (
               <>
                 <div className="sp-content-head">
@@ -131,6 +128,7 @@ export function SettingsPanel() {
                   {active.description && (
                     <p className="sp-content-desc">{active.description}</p>
                   )}
+                  {active.headerActions}
                 </div>
                 <div className="sp-content-body">{active.node}</div>
               </>

@@ -1,10 +1,10 @@
 /** ① agent 安装偏好 —— 从 interface store 抽出的跨-app 共享只读真值（R5）。
  *
- *  归属：**settings 拥有写**（Settings→Agents 勾选）。chat / workbench 只读。
+ *  归属：**settings 拥有写**（Settings→Agents 勾选）。chat / Agents app 只读。
  *  机制：**用 interface bus 的 retained 快照当内存 SSOT**（`prefs:agents`），localStorage
  *  持久化，`PUT /api/prefs/uninstalled-agents` 镜像给服务端工具。这样：
  *   - interface store 不再认识 agent 概念；
- *   - 读者（chat/workbench）零 import settings —— 只 `useBusSnapshot('prefs:agents')`；
+ *   - 读者（chat / Agents app）零 import settings —— 只 `useBusSnapshot('prefs:agents')`；
  *   - 首跑 seed 通过 bus 命令 `prefs:seed` 触发（谁先 fetch 到 agent 列表谁发）。
  *
  *  standalone chat（没有 settings owner 初始化）→ 无人 publish → 读者拿默认（全装），
