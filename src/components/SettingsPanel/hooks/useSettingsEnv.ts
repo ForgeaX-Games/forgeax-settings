@@ -1,3 +1,4 @@
+import { notifyConfigChanged } from '@forgeax/interface/lib/config-invalidation';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from '@forgeax/interface/i18n';
 
@@ -62,8 +63,7 @@ export function useSettingsEnv() {
       await reload();
       if (Object.keys(patch).some((k) => LLM_CRED_KEYS.has(k))) {
         try {
-          const { refreshAllModelCatalogs } = await import('@forgeax/interface/components/ModelPicker/useModelCatalog');
-          await refreshAllModelCatalogs();
+          notifyConfigChanged('models');
         } catch { /* catalog refresh is best-effort */ }
       }
       return true;

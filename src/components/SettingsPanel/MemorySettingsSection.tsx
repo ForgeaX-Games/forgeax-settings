@@ -1,3 +1,4 @@
+import { notifyConfigChanged, onConfigChanged } from '@forgeax/interface/lib/config-invalidation';
 /**
  * MemorySettingsSection — 记忆自动沉淀开关(总开关 + 分模型开关)。
  *
@@ -26,10 +27,12 @@ export function MemorySettingsSection(): ReactNode {
   const [cfg, setCfg] = useState<MemCfg>({ master: true, perKernel: {} });
   const [kernels, setKernels] = useState<KernelCap[]>([]);
   const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    fetch('/api/memory-settings')
+    const reload = () => { void fetch('/api/memory-settings')
       .then((r) => r.json())
       .then((j: { config?: MemCfg; kernels?: KernelCap[] }) => {
         if (!alive) return;
@@ -37,34 +40,41 @@ export function MemorySettingsSection(): ReactNode {
         if (Array.isArray(j?.kernels)) setKernels(j.kernels);
         setReady(true);
       })
-      .catch(() => setReady(true));
+      .catch(() => { if (alive) setReady(true); }); };
+    reload();
+    const unsubscribe = onConfigChanged('memory-settings', reload);
     return () => {
       alive = false;
+      unsubscribe();
     };
   }, []);
 
-  const save = (next: MemCfg): void => {
-    setCfg(next);
+  const save = (patch: { master: boolean } | { kernelId: string; enabled: boolean }): void => {
+    setSaving(true);
+    setSaveError(false);
     void fetch('/api/memory-settings', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(next),
-    }).catch(() => {});
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = await response.json() as { config: MemCfg };
+      setCfg(body.config);
+      notifyConfigChanged('memory-settings');
+    }).catch(() => setSaveError(true)).finally(() => setSaving(false));
   };
 
   /** 分模型生效:perKernel 覆盖优先,缺省按 cacheWarmCapable(warm→ON,cold→OFF)。 */
   const perKernelEnabled = (k: KernelCap): boolean => cfg.perKernel[k.id] ?? k.cacheWarmCapable;
 
-  const toggleMaster = (): void => save({ ...cfg, master: !cfg.master });
+  const toggleMaster = (): void => save({ master: !cfg.master });
   const togglePerKernel = (k: KernelCap): void =>
-    save({ ...cfg, perKernel: { ...cfg.perKernel, [k.id]: !perKernelEnabled(k) } });
+    save({ kernelId: k.id, enabled: !perKernelEnabled(k) });
 
   if (!ready) return <div style={hintStyle}>{t('common.loading')}</div>;
 
   return (
     <div>
       <label style={{ ...rowStyle, fontWeight: 600 }}>
-        <input type="checkbox" checked={cfg.master} onChange={toggleMaster} />
+        <input type="checkbox" checked={cfg.master} disabled={saving} aria-invalid={saveError} onChange={toggleMaster} />
         {t('settings.memory.masterLabel')}
       </label>
       <div style={hintStyle}>{t('settings.memory.masterHint')}</div>
@@ -77,7 +87,7 @@ export function MemorySettingsSection(): ReactNode {
           return (
             <div key={k.id}>
               <label style={rowStyle}>
-                <input type="checkbox" checked={on} onChange={() => togglePerKernel(k)} disabled={!cfg.master} />
+                <input type="checkbox" checked={on} onChange={() => togglePerKernel(k)} disabled={!cfg.master || saving} aria-invalid={saveError} />
                 <span>{k.id}</span>
                 {k.cacheWarmCapable ? (
                   <span style={{ fontSize: 10, color: '#4caf50', opacity: 0.85 }}>

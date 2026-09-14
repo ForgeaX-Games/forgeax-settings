@@ -1,3 +1,4 @@
+import { notifyConfigChanged, onConfigChanged } from '@forgeax/interface/lib/config-invalidation';
 /**
  * KernelPermissionSelect — provider 行里的权限档位下拉(一个内核一个)。
  *
@@ -50,8 +51,8 @@ function emit(): void {
   for (const fn of subscribers) fn();
 }
 
-function load(): Promise<void> {
-  if (loaded) return Promise.resolve();
+function load(force = false): Promise<void> {
+  if (loaded && !force) return Promise.resolve();
   if (inflight) return inflight;
 
   inflight = (async () => {
@@ -89,7 +90,7 @@ function load(): Promise<void> {
   return inflight;
 }
 
-function save(next: Record<string, PermissionMode>): Promise<void> {
+function save(next: Record<string, PermissionMode>, kernelId: string): Promise<void> {
   if (!snapshot) return Promise.resolve();
   const revision = ++saveRevision;
   snapshot = { ...snapshot, perKernel: next };
@@ -99,13 +100,14 @@ function save(next: Record<string, PermissionMode>): Promise<void> {
   // request arrive after the newer one and overwrite the final posture.
   const request = pendingSave.then(async () => {
     const response = await fetch('/api/kernel-permissions', {
-      method: 'PUT',
+      method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ perKernel: next }),
+      body: JSON.stringify({ kernelId, mode: next[kernelId] ?? null }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const body = await response.json().catch(() => null) as { config?: { perKernel?: Record<string, PermissionMode> } } | null;
     confirmedPerKernel = { ...(body?.config?.perKernel ?? next) };
+    notifyConfigChanged('kernel-permissions');
     if (revision === saveRevision && snapshot) {
       snapshot = { ...snapshot, perKernel: { ...confirmedPerKernel } };
       emit();
@@ -127,7 +129,9 @@ function useSnapshot(): Snapshot | null {
     const fn = (): void => bump((n) => n + 1);
     subscribers.add(fn);
     void load();
+    const unsubscribe = onConfigChanged('kernel-permissions', () => { void pendingSave.then(() => load(true)); });
     return () => {
+      unsubscribe();
       subscribers.delete(fn);
     };
   }, []);
@@ -167,7 +171,7 @@ export function KernelPermissionSelect({ kernelId }: { kernelId: string }): Reac
     // 「跟随默认」= 删掉覆盖键(而非写入默认值),这样以后改全局默认能跟着走。
     if (value === FOLLOW_DEFAULT) delete next[kernelId];
     else next[kernelId] = value as PermissionMode;
-    void save(next).catch(() => setSaveError(true));
+    void save(next, kernelId).catch(() => setSaveError(true));
   };
 
   const options = [

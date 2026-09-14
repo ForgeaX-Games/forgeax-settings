@@ -1,3 +1,4 @@
+import { notifyConfigChanged, onConfigChanged } from '@forgeax/interface/lib/config-invalidation';
 /**
  * KernelMemoryToggle — per-kernel memory checkbox in Providers rows.
  * Shares one GET with all rows via module-level cache (same pattern as KernelPermissionSelect).
@@ -25,8 +26,8 @@ function emit(): void {
   for (const fn of subscribers) fn();
 }
 
-function load(): Promise<void> {
-  if (loaded) return Promise.resolve();
+function load(force = false): Promise<void> {
+  if (loaded && !force) return Promise.resolve();
   if (inflight) return inflight;
 
   inflight = (async () => {
@@ -59,25 +60,28 @@ function perKernelEnabled(kernelId: string): boolean {
   return snapshot.perKernel[kernelId] ?? cap?.cacheWarmCapable ?? false;
 }
 
-function save(next: Snapshot): void {
-  snapshot = next;
-  emit();
-  void fetch('/api/memory-settings', {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ master: next.master, perKernel: next.perKernel }),
-  }).catch(() => {});
+async function save(kernelId: string, enabled: boolean): Promise<void> {
+  const response = await fetch('/api/memory-settings', {
+    method: 'PATCH', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kernelId, enabled }),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  await load(true);
+  notifyConfigChanged('memory-settings');
 }
 
 export function KernelMemoryToggle({ kernelId }: { kernelId: string }): ReactNode {
   const { t } = useTranslation();
   const [, tick] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   useEffect(() => {
     const sub = () => tick((n) => n + 1);
     subscribers.add(sub);
     void load().then(sub);
-    return () => { subscribers.delete(sub); };
+    const unsubscribe = onConfigChanged('memory-settings', () => { void load(true); });
+    return () => { subscribers.delete(sub); unsubscribe(); };
   }, []);
 
   if (!loaded || !snapshot) return null;
@@ -91,14 +95,14 @@ export function KernelMemoryToggle({ kernelId }: { kernelId: string }): ReactNod
       <input
         type="checkbox"
         checked={checked}
-        disabled={!snapshot.master}
+        disabled={!snapshot.master || saving}
+        aria-invalid={saveError}
         aria-label={t('settings.memory.toggle')}
         onChange={() => {
           const on = perKernelEnabled(kernelId);
-          save({
-            ...snapshot!,
-            perKernel: { ...snapshot!.perKernel, [kernelId]: !on },
-          });
+          setSaving(true);
+          setSaveError(false);
+          void save(kernelId, !on).catch(() => setSaveError(true)).finally(() => setSaving(false));
         }}
       />
       <span>{t('settings.memory.toggle')}</span>
