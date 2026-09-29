@@ -10,205 +10,292 @@
  *                                     real call requires a `recorded[]` event
  *                                     selection UI not yet in this panel.
  */
-import { useEffect, useState } from 'react';
-import { Section } from '@forgeax/interface/components/SettingsPrimitives';
-import { GitFork, Mic, RefreshCw } from 'lucide-react';
-import { useTranslation } from '@forgeax/interface/i18n';
+
+import { GitFork, Mic, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  extensionOriginLabel,
-  type ExtensionOrigin,
-  type WritableExtensionOrigin,
-} from '../../extension-origin';
+	type ExtensionOrigin,
+	extensionOriginLabel,
+	type WritableExtensionOrigin,
+} from "../../extension-origin";
+import { useTranslation } from "../../runtime";
+import { Section } from "../SettingsPrimitives";
 
 interface ManifestRow {
-  id: string;
-  version: string;
-  kind: string;
-  origin: ExtensionOrigin;
-  displayName?: string | { en?: string; zh?: string };
+	id: string;
+	version: string;
+	kind: string;
+	origin: ExtensionOrigin;
+	displayName?: string | { en?: string; zh?: string };
 }
 
-interface ManifestsResp { manifests: ManifestRow[] }
+interface ManifestsResp {
+	manifests: ManifestRow[];
+}
 
 type ForkResult =
-  | { ok: true; id: string; dir: string; origin: WritableExtensionOrigin }
-  | { ok: false; code: string; error: string };
+	| { ok: true; id: string; dir: string; origin: WritableExtensionOrigin }
+	| { ok: false; code: string; error: string };
 
 export function AuthorPanel(): React.ReactNode {
-  const { t } = useTranslation();
-  const [manifests, setManifests] = useState<ManifestRow[] | null>(null);
-  const [srcId, setSrcId] = useState('');
-  const [newId, setNewId] = useState('');
-  const [destinationOrigin, setDestinationOrigin] = useState<WritableExtensionOrigin>('user');
-  const [projectRoot, setProjectRoot] = useState('');
-  const [forking, setForking] = useState(false);
-  const [forkResult, setForkResult] = useState<ForkResult | null>(null);
+	const { t } = useTranslation();
+	const [manifests, setManifests] = useState<ManifestRow[] | null>(null);
+	const [srcId, setSrcId] = useState("");
+	const [newId, setNewId] = useState("");
+	const [destinationOrigin, setDestinationOrigin] =
+		useState<WritableExtensionOrigin>("user");
+	const [projectRoot, setProjectRoot] = useState("");
+	const [forking, setForking] = useState(false);
+	const [forkResult, setForkResult] = useState<ForkResult | null>(null);
 
+	const loadManifests = useCallback(async (): Promise<void> => {
+		try {
+			const r = await fetch("/api/extensions/manifests");
+			const j = (await r.json()) as ManifestsResp;
+			setManifests(j.manifests ?? []);
+		} catch {
+			setManifests([]);
+		}
+	}, []);
 
-  const loadManifests = async (): Promise<void> => {
-    try {
-      const r = await fetch('/api/extensions/manifests');
-      const j = (await r.json()) as ManifestsResp;
-      setManifests(j.manifests ?? []);
-    } catch {
-      setManifests([]);
-    }
-  };
+	useEffect(() => {
+		void loadManifests();
+	}, [loadManifests]);
 
-  useEffect(() => { void loadManifests(); }, []);
+	// Auto-fill newId when srcId changes (UX nicety; user can still edit).
+	useEffect(() => {
+		if (!srcId) {
+			setNewId("");
+			return;
+		}
+		const suggested = srcId.endsWith("-mine") ? `${srcId}-2` : `${srcId}-mine`;
+		setNewId(suggested);
+	}, [srcId]);
 
-  // Auto-fill newId when srcId changes (UX nicety; user can still edit).
-  useEffect(() => {
-    if (!srcId) { setNewId(''); return; }
-    const suggested = srcId.endsWith('-mine') ? `${srcId}-2` : `${srcId}-mine`;
-    setNewId(suggested);
-  }, [srcId]);
+	const doFork = async (): Promise<void> => {
+		if (!srcId) return;
+		setForking(true);
+		setForkResult(null);
+		try {
+			const r = await fetch("/api/extensions/fork", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					srcId,
+					newId: newId || undefined,
+					destinationOrigin,
+					projectRoot:
+						destinationOrigin === "project"
+							? projectRoot || undefined
+							: undefined,
+				}),
+			});
+			const j = (await r.json()) as ForkResult;
+			setForkResult(j);
+			if (j.ok) await loadManifests();
+		} catch (e) {
+			setForkResult({
+				ok: false,
+				code: "fetch_error",
+				error: (e as Error).message,
+			});
+		} finally {
+			setForking(false);
+		}
+	};
 
-  const doFork = async (): Promise<void> => {
-    if (!srcId) return;
-    setForking(true);
-    setForkResult(null);
-    try {
-      const r = await fetch('/api/extensions/fork', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          srcId,
-          newId: newId || undefined,
-          destinationOrigin,
-          projectRoot: destinationOrigin === 'project' ? (projectRoot || undefined) : undefined,
-        }),
-      });
-      const j = (await r.json()) as ForkResult;
-      setForkResult(j);
-      if (j.ok) await loadManifests();
-    } catch (e) {
-      setForkResult({ ok: false, code: 'fetch_error', error: (e as Error).message });
-    } finally {
-      setForking(false);
-    }
-  };
+	const forkable = (manifests ?? []).filter(
+		(m) => !m.id.startsWith("@forgeax-internal/"),
+	);
 
-  const forkable = (manifests ?? []).filter((m) => !m.id.startsWith('@forgeax-internal/'));
+	return (
+		<>
+			<Section
+				icon={<GitFork size={14} />}
+				title={t("author.fork.title")}
+				hint={t("author.fork.hint")}
+			>
+				<div
+					style={{
+						display: "grid",
+						gridTemplateColumns: "90px 1fr",
+						gap: 8,
+						alignItems: "center",
+					}}
+				>
+					<label className="settings-label" htmlFor="fork-source">
+						{t("author.fork.sourceLabel")}
+					</label>
+					<select
+						id="fork-source"
+						value={srcId}
+						onChange={(e) => setSrcId(e.target.value)}
+						disabled={forking || manifests === null}
+						style={selectStyle}
+					>
+						<option value="">{t("author.fork.selectPlaceholder")}</option>
+						{forkable.map((m) => (
+							<option key={m.id} value={m.id}>
+								{m.id} (v{m.version} · {extensionOriginLabel(m.origin)} ·{" "}
+								{m.kind})
+							</option>
+						))}
+					</select>
 
-  return (
-    <>
-      <Section icon={<GitFork size={14} />} title={t('author.fork.title')} hint={t('author.fork.hint')}>
-        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr', gap: 8, alignItems: 'center' }}>
-          <label className="settings-label">{t('author.fork.sourceLabel')}</label>
-          <select
-            value={srcId}
-            onChange={(e) => setSrcId(e.target.value)}
-            disabled={forking || manifests === null}
-            style={selectStyle}
-          >
-            <option value="">{t('author.fork.selectPlaceholder')}</option>
-            {forkable.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.id} (v{m.version} · {extensionOriginLabel(m.origin)} · {m.kind})
-              </option>
-            ))}
-          </select>
+					<label className="settings-label" htmlFor="fork-new-id">
+						{t("author.fork.newIdLabel")}
+					</label>
+					<input
+						id="fork-new-id"
+						type="text"
+						value={newId}
+						onChange={(e) => setNewId(e.target.value)}
+						placeholder="@me/foo-mine"
+						disabled={forking || !srcId}
+						style={inputStyle}
+					/>
 
-          <label className="settings-label">{t('author.fork.newIdLabel')}</label>
-          <input
-            type="text"
-            value={newId}
-            onChange={(e) => setNewId(e.target.value)}
-            placeholder="@me/foo-mine"
-            disabled={forking || !srcId}
-            style={inputStyle}
-          />
+					<div className="settings-label">
+						{t("author.fork.destinationOriginLabel")}
+					</div>
+					<div style={{ display: "flex", gap: 12 }}>
+						{(["user", "project"] as const).map((origin) => (
+							<label
+								key={origin}
+								style={{
+									fontSize: 12,
+									display: "inline-flex",
+									alignItems: "center",
+									gap: 4,
+								}}
+							>
+								<input
+									id={`fork-origin-${origin}`}
+									type="radio"
+									name="fork-origin"
+									checked={destinationOrigin === origin}
+									onChange={() => setDestinationOrigin(origin)}
+								/>
+								{origin === "user"
+									? t("author.fork.originUser")
+									: t("author.fork.originProject")}
+							</label>
+						))}
+					</div>
 
-          <label className="settings-label">{t('author.fork.destinationOriginLabel')}</label>
-          <div style={{ display: 'flex', gap: 12 }}>
-            {(['user', 'project'] as const).map((origin) => (
-              <label key={origin} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <input type="radio" name="fork-origin" checked={destinationOrigin === origin} onChange={() => setDestinationOrigin(origin)} />
-                {origin === 'user' ? t('author.fork.originUser') : t('author.fork.originProject')}
-              </label>
-            ))}
-          </div>
+					{destinationOrigin === "project" && (
+						<>
+							<label className="settings-label" htmlFor="fork-project-root">
+								project root
+							</label>
+							<input
+								id="fork-project-root"
+								type="text"
+								value={projectRoot}
+								onChange={(e) => setProjectRoot(e.target.value)}
+								placeholder="/abs/path/to/project"
+								disabled={forking}
+								style={inputStyle}
+							/>
+						</>
+					)}
+				</div>
 
-          {destinationOrigin === 'project' && (
-            <>
-              <label className="settings-label">project root</label>
-              <input
-                type="text"
-                value={projectRoot}
-                onChange={(e) => setProjectRoot(e.target.value)}
-                placeholder="/abs/path/to/project"
-                disabled={forking}
-                style={inputStyle}
-              />
-            </>
-          )}
-        </div>
+				<div
+					style={{
+						display: "flex",
+						gap: 8,
+						marginTop: 10,
+						alignItems: "center",
+					}}
+				>
+					<button
+						type="button"
+						className="settings-edit-btn"
+						onClick={() => void doFork()}
+						disabled={
+							forking ||
+							!srcId ||
+							(destinationOrigin === "project" && !projectRoot)
+						}
+					>
+						{forking ? t("author.fork.copying") : "Fork"}
+					</button>
+					<button
+						type="button"
+						className="settings-edit-btn"
+						onClick={() => void loadManifests()}
+						disabled={forking}
+						title={t("author.fork.refreshTitle")}
+					>
+						<RefreshCw size={11} /> {t("author.fork.refresh")}
+					</button>
+				</div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
-          <button
-            type="button"
-            className="settings-edit-btn"
-            onClick={() => void doFork()}
-            disabled={forking || !srcId || (destinationOrigin === 'project' && !projectRoot)}
-          >
-            {forking ? t('author.fork.copying') : 'Fork'}
-          </button>
-          <button
-            type="button"
-            className="settings-edit-btn"
-            onClick={() => void loadManifests()}
-            disabled={forking}
-            title={t('author.fork.refreshTitle')}
-          >
-            <RefreshCw size={11} /> {t('author.fork.refresh')}
-          </button>
-        </div>
+				{forkResult && (
+					<div style={{ marginTop: 10 }}>
+						{forkResult.ok ? (
+							<div className="settings-info">
+								<span className="ok-pill">{t("author.fork.doneBadge")}</span>
+								<div style={{ marginTop: 4 }}>
+									<code>{forkResult.id}</code> → <code>{forkResult.dir}</code>
+								</div>
+								<div className="settings-help">{t("author.fork.doneHelp")}</div>
+							</div>
+						) : (
+							<div
+								className="err-pill"
+								style={{
+									display: "inline-block",
+									maxWidth: "100%",
+									whiteSpace: "normal",
+								}}
+							>
+								{forkResult.code}: {forkResult.error}
+							</div>
+						)}
+					</div>
+				)}
 
-        {forkResult && (
-          <div style={{ marginTop: 10 }}>
-            {forkResult.ok ? (
-              <div className="settings-info">
-                <span className="ok-pill">{t('author.fork.doneBadge')}</span>
-                <div style={{ marginTop: 4 }}><code>{forkResult.id}</code> → <code>{forkResult.dir}</code></div>
-                <div className="settings-help">{t('author.fork.doneHelp')}</div>
-              </div>
-            ) : (
-              <div className="err-pill" style={{ display: 'inline-block', maxWidth: '100%', whiteSpace: 'normal' }}>
-                {forkResult.code}: {forkResult.error}
-              </div>
-            )}
-          </div>
-        )}
+				<div className="settings-help" style={{ marginTop: 10 }}>
+					{t("author.fork.note")}
+				</div>
+			</Section>
 
-        <div className="settings-help" style={{ marginTop: 10 }}>
-          {t('author.fork.note')}
-        </div>
-      </Section>
-
-      <Section icon={<Mic size={14} />} title={t('author.record.title')} hint={t('author.record.hint')}>
-        <div className="settings-help" style={{ marginTop: 4 }}>
-          {t('author.record.backendPre')} <code>POST /api/extensions/record-skill</code> {t('author.record.backendMid')} (<code>recorded[]</code>) {t('author.record.backendMid2')}
-          {' '}<code>meta:author-plugin</code>{' '}{t('author.record.backendMid3')}
-          {' '}<code>/author-plugin</code>{' '}{t('author.record.backendPost')}
-        </div>
-        <div className="settings-help" style={{ marginTop: 6 }}>
-          {t('author.record.draftPre')} <code>~/.forgeax/extensions/skill-&lt;name&gt;/SKILL.md</code>{t('author.record.draftMid')} <code>09-NON-EXPERT-AUTHORING §2.3</code>{t('author.record.draftPost')}
-        </div>
-      </Section>
-    </>
-  );
+			<Section
+				icon={<Mic size={14} />}
+				title={t("author.record.title")}
+				hint={t("author.record.hint")}
+			>
+				<div className="settings-help" style={{ marginTop: 4 }}>
+					{t("author.record.backendPre")}{" "}
+					<code>POST /api/extensions/record-skill</code>{" "}
+					{t("author.record.backendMid")} (<code>recorded[]</code>){" "}
+					{t("author.record.backendMid2")} <code>meta:author-plugin</code>{" "}
+					{t("author.record.backendMid3")} <code>/author-plugin</code>{" "}
+					{t("author.record.backendPost")}
+				</div>
+				<div className="settings-help" style={{ marginTop: 6 }}>
+					{t("author.record.draftPre")}{" "}
+					<code>~/.forgeax/extensions/skill-&lt;name&gt;/SKILL.md</code>
+					{t("author.record.draftMid")}{" "}
+					<code>09-NON-EXPERT-AUTHORING §2.3</code>
+					{t("author.record.draftPost")}
+				</div>
+			</Section>
+		</>
+	);
 }
 
 const inputStyle = {
-  background: 'rgba(0,0,0,0.4)',
-  border: '1px solid rgba(255,255,255,0.08)',
-  borderRadius: 5,
-  padding: '6px 9px',
-  color: 'var(--text-primary)',
-  fontSize: 12,
-  fontFamily: 'inherit',
-  outline: 'none',
+	background: "rgba(0,0,0,0.4)",
+	border: "1px solid rgba(255,255,255,0.08)",
+	borderRadius: 5,
+	padding: "6px 9px",
+	color: "var(--text-primary)",
+	fontSize: 12,
+	fontFamily: "inherit",
+	outline: "none",
 } as const;
 
 const selectStyle = inputStyle;

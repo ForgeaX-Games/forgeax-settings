@@ -17,22 +17,24 @@
  *   node        the actual section body — full React subtree.
  */
 
-import { useEffect, useSyncExternalStore } from 'react';
-import type { ComponentType, ReactNode } from 'react';
-import type { LucideProps } from 'lucide-react';
+import type { LucideProps } from "lucide-react";
+import type { ComponentType, ReactNode } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
-export type SettingsGroup = 'ai' | 'system' | 'about' | 'other';
+export type SettingsGroup = "ai" | "system" | "about" | "other";
 
 export interface SettingsSection {
-  id: string;
-  label: string;
-  description?: string;
-  icon?: ComponentType<LucideProps>;
-  priority: number;
-  group?: SettingsGroup;
-  /** Optional actions rendered in the content header (e.g. refresh). */
-  headerActions?: ReactNode;
-  node: ReactNode;
+	id: string;
+	label: string;
+	description?: string;
+	icon?: ComponentType<LucideProps>;
+	priority: number;
+	group?: SettingsGroup;
+	/** Optional actions rendered in the content header (e.g. refresh). */
+	headerActions?: ReactNode;
+	node: ReactNode;
+	/** Keep the registration lifecycle mounted while omitting unavailable product sections. */
+	enabled?: boolean;
 }
 
 const sections = new Map<string, SettingsSection>();
@@ -40,27 +42,27 @@ let snapshot: SettingsSection[] = [];
 const listeners = new Set<() => void>();
 
 function emit() {
-  snapshot = Array.from(sections.values());
-  for (const fn of listeners) fn();
+	snapshot = Array.from(sections.values());
+	for (const fn of listeners) fn();
 }
 
 export const settingsSectionStore = {
-  upsert(s: SettingsSection) {
-    sections.set(s.id, s);
-    emit();
-  },
-  remove(id: string) {
-    if (sections.delete(id)) emit();
-  },
-  getAll(): SettingsSection[] {
-    return snapshot;
-  },
-  subscribe(fn: () => void) {
-    listeners.add(fn);
-    return () => {
-      listeners.delete(fn);
-    };
-  },
+	upsert(s: SettingsSection) {
+		sections.set(s.id, s);
+		emit();
+	},
+	remove(id: string) {
+		if (sections.delete(id)) emit();
+	},
+	getAll(): SettingsSection[] {
+		return snapshot;
+	},
+	subscribe(fn: () => void) {
+		listeners.add(fn);
+		return () => {
+			listeners.delete(fn);
+		};
+	},
 };
 
 /**
@@ -76,21 +78,22 @@ export const settingsSectionStore = {
  *   });
  */
 export function useSettingsSection(s: SettingsSection): void {
-  // 2026-05-17 — 同 StatusBar/store.ts:同名 fix。render 阶段 upsert 会引发
-  // SettingsPanel "setState while rendering" 警告,挪到 useEffect 提交后调。
-  useEffect(() => {
-    settingsSectionStore.upsert(s);
-  });
-  useEffect(() => {
-    return () => settingsSectionStore.remove(s.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.id]);
+	// 2026-05-17 — 同 StatusBar/store.ts:同名 fix。render 阶段 upsert 会引发
+	// SettingsPanel "setState while rendering" 警告,挪到 useEffect 提交后调。
+	useEffect(() => {
+		if (s.enabled === false) settingsSectionStore.remove(s.id);
+		else settingsSectionStore.upsert(s);
+	});
+	useEffect(() => {
+		return () => settingsSectionStore.remove(s.id);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [s.id]);
 }
 
 export function useSettingsSections(): SettingsSection[] {
-  return useSyncExternalStore(
-    settingsSectionStore.subscribe,
-    settingsSectionStore.getAll,
-    settingsSectionStore.getAll,
-  );
+	return useSyncExternalStore(
+		settingsSectionStore.subscribe,
+		settingsSectionStore.getAll,
+		settingsSectionStore.getAll,
+	);
 }

@@ -1,78 +1,57 @@
-// Standalone settings app entry — OWNS its own boot, mirroring
-// packages/editor/standalone/main.tsx. interface is consumed purely as a parts
-// library; the IDE product shell (<App>) belongs to Studio product assembly and is NOT
-// rendered here. Mounts BOTH the sections-register side-effect and the panel,
-// like studio, full-viewport over the booted interface store.
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import '@forgeax/interface/styles/global.css';
-import { applyTheme } from '@forgeax/design/theme';
-import { initI18n } from '@forgeax/interface/i18n';
-import { initAegis } from '@forgeax/interface/lib/aegis';
-import { BrandProvider } from '@forgeax/interface/brand';
-import { ErrorBoundary } from '@forgeax/interface/components/ErrorBoundary';
-import { bootStageEntry } from '@forgeax/interface/boot/driver';
-import { bootBroadcast } from '@forgeax/interface/boot/broadcast';
-import { subscribeNarrativeCopilot } from '@forgeax/interface/lib/narrative-copilot';
-import { subscribeFileActivityStream } from '@forgeax/interface/lib/file-activity-stream';
-import { subscribePermissionStream } from '@forgeax/interface/lib/permission-stream';
-import { subscribePerceptionStream } from '@forgeax/interface/lib/perception-stream';
-import { syncBrowserPrefsFromServer, startBrowserPrefsSync } from '@forgeax/interface/lib/browser-prefs-sync';
-import { useShellStore } from '@forgeax/interface/store';
-import { installHealthBridge } from '@forgeax/interface/components/StatusBar/healthBridge';
-import { SettingsPanel } from './components/SettingsPanel/SettingsPanel';
-import { SettingsSectionsRegister } from './components/SettingsPanel/SectionsRegister';
-import { initAgentPrefs } from './agent-prefs';
+import { StrictMode, useCallback, useState } from "react";
+import { createRoot } from "react-dom/client";
+import "@forgeax/design/tokens.css";
+import "@forgeax/design/styles/primitive.css";
+import "@forgeax/design/styles/semantic.css";
+import { applyTheme } from "@forgeax/design/theme";
+import { initAgentPrefs } from "./agent-prefs";
+import { SettingsSectionsRegister } from "./components/SettingsPanel/SectionsRegister";
+import { SettingsPanel } from "./components/SettingsPanel/SettingsPanel";
+import { StandaloneSettingsRuntimeProvider } from "./runtime";
+import "./standalone.css";
 
-const SHELL_CSS = `
-.forgeax-standalone-shell { position: fixed; inset: 0; display: flex; overflow: hidden; background: var(--color-background, #0e1216); }
-.forgeax-standalone-shell > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
-`;
+function StandaloneSettingsApp() {
+	const [open, setOpen] = useState(true);
+	const [activeId, setActiveId] = useState<string | null>("providers");
+	const onActiveIdChange = useCallback((id: string) => setActiveId(id), []);
+
+	return (
+		<StandaloneSettingsRuntimeProvider>
+			<SettingsSectionsRegister
+				activeId={activeId}
+				onActiveIdChange={onActiveIdChange}
+			/>
+			<SettingsPanel
+				open={open}
+				activeId={activeId}
+				onClose={() => setOpen(false)}
+				onActiveIdChange={onActiveIdChange}
+			/>
+			{!open && (
+				<button
+					type="button"
+					className="settings-standalone-reopen"
+					onClick={() => setOpen(true)}
+				>
+					Open Settings
+				</button>
+			)}
+		</StandaloneSettingsRuntimeProvider>
+	);
+}
 
 function boot(): void {
-  applyTheme('dark');
-  initI18n();
-  initAegis();
+	applyTheme("dark");
+	initAgentPrefs();
 
-  const rootEl = document.getElementById('root');
-  if (!rootEl) throw new Error('#root missing');
-
-  void syncBrowserPrefsFromServer().finally(() => {
-    initI18n();
-    startBrowserPrefsSync();
-  });
-  bootStageEntry();
-
-  installHealthBridge();
-  initAgentPrefs(); // ① agent 安装偏好 owner —— 发首帧 bus 快照 + 挂 seed 监听
-  bootBroadcast(); // R5/P1 唯一公共广播 socket（telemetry）
-  subscribeNarrativeCopilot();
-  subscribeFileActivityStream();
-  subscribePermissionStream();
-  subscribePerceptionStream();
-  // SettingsPanel renders as an overlay keyed off activeOverlay==='settings' —
-  // open it so the standalone page lands on its own surface.
-  useShellStore.getState().openOverlay('settings');
-  void useShellStore.getState().initSessions();
-
-  if (import.meta.env.DEV) {
-    (window as unknown as Record<string, unknown>)['__dev'] = useShellStore;
-  }
-  (window as unknown as { __forgeaxBoot?: { done?: () => void } }).__forgeaxBoot?.done?.();
-
-  createRoot(rootEl).render(
-    <StrictMode>
-      <ErrorBoundary scope="settings-standalone">
-        <BrandProvider>
-          <style>{SHELL_CSS}</style>
-          <div className="forgeax-standalone-shell studio-shell studio-shell--preview-skin">
-            <SettingsSectionsRegister />
-            <SettingsPanel />
-          </div>
-        </BrandProvider>
-      </ErrorBoundary>
-    </StrictMode>,
-  );
+	const rootElement = document.getElementById("root");
+	if (!rootElement) throw new Error("#root missing");
+	createRoot(rootElement).render(
+		<StrictMode>
+			<StandaloneSettingsApp />
+		</StrictMode>,
+	);
+	window.__forgeaxBoot?.done?.();
 }
 
 boot();

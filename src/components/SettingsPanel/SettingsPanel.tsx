@@ -25,123 +25,146 @@
  * - Esc closes; clicking the dim backdrop closes.
  */
 
-import { useEffect, useMemo } from 'react';
-import { X } from 'lucide-react';
-import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { useShellStore } from '@forgeax/interface/store';
-import { useTranslation } from '@forgeax/interface/i18n';
-import { useSettingsSections, type SettingsGroup, type SettingsSection } from './store';
-import './SettingsPanel.css';
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { useTranslation } from "../../runtime";
+import {
+	type SettingsGroup,
+	type SettingsSection,
+	useSettingsSections,
+} from "./store";
+import "./SettingsPanel.css";
 
-const GROUP_ORDER: SettingsGroup[] = ['ai', 'system', 'about', 'other'];
+const GROUP_ORDER: SettingsGroup[] = ["ai", "system", "about", "other"];
 
-export function SettingsPanel() {
-  const { t } = useTranslation();
-  const open = useShellStore((s) => s.activeOverlay === 'settings');
-  const closeOverlay = useShellStore((s) => s.closeOverlay);
-  const activeId = useShellStore((s) => s.overlayParam);
-  const setActive = useShellStore((s) => s.setOverlayParam);
-  const sections = useSettingsSections();
+export interface SettingsPanelProps {
+	open: boolean;
+	activeId: string | null;
+	onClose(): void;
+	onActiveIdChange(id: string): void;
+}
 
-  const sorted = useMemo(
-    () => [...sections].sort((a, b) => b.priority - a.priority),
-    [sections],
-  );
+export function SettingsPanel({
+	open,
+	activeId,
+	onClose,
+	onActiveIdChange,
+}: SettingsPanelProps) {
+	const { t } = useTranslation();
+	const sections = useSettingsSections();
 
-  const grouped = useMemo(() => {
-    const map = new Map<SettingsGroup, SettingsSection[]>();
-    for (const s of sorted) {
-      const g = s.group ?? 'other';
-      const arr = map.get(g) ?? [];
-      arr.push(s);
-      map.set(g, arr);
-    }
-    return GROUP_ORDER.filter((g) => map.has(g)).map((g) => ({ group: g, items: map.get(g)! }));
-  }, [sorted]);
+	const sorted = useMemo(
+		() => [...sections].sort((a, b) => b.priority - a.priority),
+		[sections],
+	);
 
-  // Esc + scroll-lock + focus-trap now handled by Radix Dialog.
+	const grouped = useMemo(() => {
+		const map = new Map<SettingsGroup, SettingsSection[]>();
+		for (const s of sorted) {
+			const g = s.group ?? "other";
+			const arr = map.get(g) ?? [];
+			arr.push(s);
+			map.set(g, arr);
+		}
+		return GROUP_ORDER.filter((g) => map.has(g)).map((g) => ({
+			group: g,
+			items: map.get(g)!,
+		}));
+	}, [sorted]);
 
-  // Auto-select first section when none is set OR the current one disappears.
-  useEffect(() => {
-    if (!open) return;
-    const hit = activeId && sorted.some((s) => s.id === activeId);
-    if (!hit && sorted[0]) setActive(sorted[0].id);
-  }, [open, sorted, activeId, setActive]);
+	// Esc + scroll-lock + focus-trap now handled by Radix Dialog.
 
-  const active = sorted.find((s) => s.id === activeId) ?? sorted[0] ?? null;
+	// Auto-select first section when none is set OR the current one disappears.
+	useEffect(() => {
+		if (!open) return;
+		const hit = activeId && sorted.some((s) => s.id === activeId);
+		if (!hit && sorted[0]) onActiveIdChange(sorted[0].id);
+	}, [open, sorted, activeId, onActiveIdChange]);
 
-  return (
-    <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o) closeOverlay(); }}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="settings-panel-overlay" />
-        <DialogPrimitive.Content
-          className="settings-panel-shell settings-panel-shell--dialog"
-          aria-label={t('settings.title')}
-        >
-          <header className="sp-header">
-            <DialogPrimitive.Title className="sp-title">{t('settings.title')}</DialogPrimitive.Title>
-            <DialogPrimitive.Close asChild>
-              <button
-                type="button"
-                className="sp-close"
-                title={t('settings.closeEsc')}
-                aria-label={t('settings.closeAria')}
-              >
-                <X size={16} />
-              </button>
-            </DialogPrimitive.Close>
-          </header>
+	const active = sorted.find((s) => s.id === activeId) ?? sorted[0] ?? null;
 
-          <div className="sp-body">
-          <nav className="sp-nav" aria-label={t('settings.navAria')}>
-            {grouped.map(({ group, items }) => (
-              <div key={group} className="sp-nav-group">
-                <div className="sp-nav-group-label">{t(`settings.groups.${group}`)}</div>
-                {items.map((s) => {
-                  const Icon = s.icon;
-                  const isActive = active && s.id === active.id;
-                  return (
-                    <button
-                      type="button"
-                      key={s.id}
-                      className={`sp-nav-row ${isActive ? 'is-active' : ''}`}
-                      onClick={() => setActive(s.id)}
-                      title={s.description ?? s.label}
-                    >
-                      {Icon && <Icon size={14} className="sp-nav-ico" />}
-                      <span className="sp-nav-label">{s.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-            {grouped.length === 0 && (
-              <div className="sp-nav-empty">{t('settings.noSections')}</div>
-            )}
-          </nav>
+	return (
+		<DialogPrimitive.Root
+			open={open}
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) onClose();
+			}}
+		>
+			<DialogPrimitive.Portal>
+				<DialogPrimitive.Overlay className="settings-panel-overlay" />
+				<DialogPrimitive.Content
+					className="settings-panel-shell settings-panel-shell--dialog"
+					aria-label={t("settings.title")}
+				>
+					<header className="sp-header">
+						<DialogPrimitive.Title className="sp-title">
+							{t("settings.title")}
+						</DialogPrimitive.Title>
+						<DialogPrimitive.Close asChild>
+							<button
+								type="button"
+								className="sp-close"
+								title={t("settings.closeEsc")}
+								aria-label={t("settings.closeAria")}
+							>
+								<X size={16} />
+							</button>
+						</DialogPrimitive.Close>
+					</header>
 
-          <section className="sp-content thin-scrollbar" id={active?.id}>
-            {active ? (
-              <>
-                <div className="sp-content-head">
-                  <h2 className="sp-content-title">{active.label}</h2>
-                  {active.description && (
-                    <p className="sp-content-desc">{active.description}</p>
-                  )}
-                  {active.headerActions}
-                </div>
-                <div className="sp-content-body">{active.node}</div>
-              </>
-            ) : (
-              <div className="sp-content-empty">
-                <p>{t('settings.noSectionsHint1')}</p>
-                <p>{t('settings.noSectionsHint2')}</p>
-              </div>
-            )}
-          </section>
-        </div>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
-  );
+					<div className="sp-body">
+						<nav className="sp-nav" aria-label={t("settings.navAria")}>
+							{grouped.map(({ group, items }) => (
+								<div key={group} className="sp-nav-group">
+									<div className="sp-nav-group-label">
+										{t(`settings.groups.${group}`)}
+									</div>
+									{items.map((s) => {
+										const Icon = s.icon;
+										const isActive = active && s.id === active.id;
+										return (
+											<button
+												type="button"
+												key={s.id}
+												className={`sp-nav-row ${isActive ? "is-active" : ""}`}
+												onClick={() => onActiveIdChange(s.id)}
+												title={s.description ?? s.label}
+											>
+												{Icon && <Icon size={14} className="sp-nav-ico" />}
+												<span className="sp-nav-label">{s.label}</span>
+											</button>
+										);
+									})}
+								</div>
+							))}
+							{grouped.length === 0 && (
+								<div className="sp-nav-empty">{t("settings.noSections")}</div>
+							)}
+						</nav>
+
+						<section className="sp-content thin-scrollbar" id={active?.id}>
+							{active ? (
+								<>
+									<div className="sp-content-head">
+										<h2 className="sp-content-title">{active.label}</h2>
+										{active.description && (
+											<p className="sp-content-desc">{active.description}</p>
+										)}
+										{active.headerActions}
+									</div>
+									<div className="sp-content-body">{active.node}</div>
+								</>
+							) : (
+								<div className="sp-content-empty">
+									<p>{t("settings.noSectionsHint1")}</p>
+									<p>{t("settings.noSectionsHint2")}</p>
+								</div>
+							)}
+						</section>
+					</div>
+				</DialogPrimitive.Content>
+			</DialogPrimitive.Portal>
+		</DialogPrimitive.Root>
+	);
 }
